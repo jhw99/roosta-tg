@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { getWebApp } from '../lib/webapp';
 
 /**
@@ -18,12 +18,14 @@ export function MainButtonShim({
   disabled?: boolean;
   visible?: boolean;
 }) {
+  const [hasNativeMainButton, setHasNativeMainButton] = useState(false);
   useEffect(() => {
     let mounted = true;
     let cleanup: (() => void) | undefined;
     (async () => {
       const wa = await getWebApp();
       if (!mounted || !wa) return;
+      setHasNativeMainButton(true);
       const btn = wa.MainButton;
       const handler = () => onClick();
       try {
@@ -59,7 +61,7 @@ export function MainButtonShim({
     };
   }, [text, onClick, disabled, visible]);
 
-  if (!visible) return null;
+  if (!visible || hasNativeMainButton) return null;
   return (
     <div className="sticky bottom-0 left-0 right-0 z-40 border-t border-black/5 bg-[var(--color-bg)] p-3 sm:hidden">
       <button

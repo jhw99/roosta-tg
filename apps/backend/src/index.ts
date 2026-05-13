@@ -1,5 +1,6 @@
 import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
+import { cors } from 'hono/cors';
 import { loadEnv } from '@roosta/shared/env';
 import { logger } from './lib/logger.js';
 import { initDataMiddleware } from './middleware/initData.js';
@@ -20,6 +21,23 @@ if (env.SENTRY_DSN) {
 }
 
 const app = new Hono();
+
+app.use(
+  '*',
+  cors({
+    origin: (origin) => {
+      if (!origin) return origin;
+      if (/^https:\/\/([a-z0-9-]+\.)*vercel\.app$/.test(origin)) return origin;
+      if (/^https:\/\/([a-z0-9-]+\.)*roosta\.app$/.test(origin)) return origin;
+      if (origin === 'http://localhost:3000') return origin;
+      return null;
+    },
+    allowHeaders: ['Authorization', 'Content-Type', 'X-Service-Token', 'X-Service-Telegram-Id'],
+    allowMethods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
+    credentials: true,
+    maxAge: 600,
+  }),
+);
 
 app.get('/health', (c) => c.json({ ok: true, ts: Math.floor(Date.now() / 1000) }));
 

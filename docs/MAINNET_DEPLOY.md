@@ -194,3 +194,26 @@ After the row is appended:
    approval to evidence sign-off.
 3. Update Section 6 env vars with the new `FACTORY_ADDRESS` and roll
    the backend.
+
+---
+
+## Appendix: Testnet Production Infrastructure (May 2026)
+
+Production-grade infra is live on **testnet** for end-to-end QA, ahead of
+mainnet cutover. URLs are redacted in this doc; full values live in
+`secrets.local.json` (gitignored).
+
+| Component | Status | Notes |
+|-----------|--------|-------|
+| Supabase project `roosta-tg` | ACTIVE_HEALTHY | region ap-northeast-2; migrations 0001–0003 applied |
+| Railway project `roosta-tg` | provisioned | services: `backend`, `bot`, `redis` (Docker image) |
+| Backend service | `<railway-backend-host>` | env wired to testnet factory + Supabase + Redis |
+| Bot service | `<railway-bot-host>` | placeholder `TELEGRAM_BOT_TOKEN` until BotFather provisioned |
+| TMA (Vercel) | https://roosta-tg.vercel.app | `NEXT_PUBLIC_API_URL` points at Railway backend |
+| Multi-member sim | 3 members joined kye on-chain | see `scripts/testnet-simulate.ts` |
+
+For mainnet cutover, re-run the procedure above with:
+- `TON_NETWORK=mainnet`, mainnet RPC + factory address
+- new Supabase project (separate from testnet)
+- new Railway project (rotate `SERVICE_TOKEN`, `WALLET_MNEMONIC`)
+- Vercel env vars for production target updated atomically with backend swap

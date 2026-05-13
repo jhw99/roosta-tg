@@ -9,9 +9,8 @@ export function getStrings(lang: Lang): Strings {
   return dict[lang] ?? en;
 }
 
-export function detectLang(languageCode: string | undefined, override?: Lang | null): Lang {
+export function detectLang(_languageCode: string | undefined, override?: Lang | null): Lang {
   if (override === 'en' || override === 'ko') return override;
-  if (languageCode?.toLowerCase().startsWith('ko')) return 'ko';
   return 'en';
 }
 

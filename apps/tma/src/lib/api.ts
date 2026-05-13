@@ -104,10 +104,10 @@ export async function apiRequest<T>(
 
 export const userSchema = z.object({
   id: z.string(),
-  telegramId: z.string(),
+  telegramId: z.union([z.string(), z.number()]),
   walletAddress: z.string().nullable(),
-  language: z.enum(['ko', 'en']),
-  createdAt: z.number(),
+  language: z.enum(['ko', 'en']).optional(),
+  createdAt: z.number().optional(),
 });
 export type ApiUser = z.infer<typeof userSchema>;
 

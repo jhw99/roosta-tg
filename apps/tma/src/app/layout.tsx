@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import Script from 'next/script';
 import { Inter } from 'next/font/google';
 import './globals.css';
 import { Providers } from '../components/Providers';
@@ -55,6 +56,9 @@ export const metadata = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en" className={inter.variable}>
+      <head>
+        <Script src="https://telegram.org/js/telegram-web-app.js" strategy="beforeInteractive" />
+      </head>
       <body style={{ fontFamily: 'var(--font-body)' }}>
         <Providers>{children}</Providers>
       </body>

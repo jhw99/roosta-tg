@@ -1,0 +1,16 @@
+{
+  "projects": [
+    {
+      "name": "KyeFactory",
+      "path": "contracts/KyeFactory.tact",
+      "output": "build/KyeFactory",
+      "options": { "debug": true }
+    },
+    {
+      "name": "KyeContract",
+      "path": "contracts/KyeContract.tact",
+      "output": "build/KyeContract",
+      "options": { "debug": true }
+    }
+  ]
+}

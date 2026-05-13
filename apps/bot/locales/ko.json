@@ -1,0 +1,11 @@
+{
+  "start.welcome": "Roosta에 오신 걸 환영합니다 — 텔레그램에서 운영하는 TON 기반 계.",
+  "start.open_tma": "Roosta 열기",
+  "help.body": "명령어: /start, /mykyes, /settings. 그 외 기능은 미니앱에서 확인하세요.",
+  "mykyes.redirect": "미니앱에서 내 계 목록을 확인하세요.",
+  "settings.redirect": "알림 설정은 미니앱에서 관리합니다.",
+  "notify.round_24h": "*{round}회차*가 24시간 후 실행됩니다. 자동 인출 금액: *{amount} USDT*.",
+  "notify.round_executed": "{round}회차 완료. 당첨자: {winner}. 지급액: *{payout} USDT*.",
+  "notify.default_member": "이번 회차 자동 인출에 실패했습니다. 24시간 내 충전해 주세요.",
+  "notify.kye_completed": "계가 완주되었습니다. 참여해 주셔서 감사합니다!"
+}

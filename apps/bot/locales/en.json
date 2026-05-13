@@ -1,0 +1,11 @@
+{
+  "start.welcome": "Welcome to Roosta — Telegram-native ROSCA on TON.",
+  "start.open_tma": "Open Roosta",
+  "help.body": "Commands: /start, /mykyes, /settings. Use the mini-app for everything else.",
+  "mykyes.redirect": "Open the mini-app to view your kyes.",
+  "settings.redirect": "Manage notification settings inside the mini-app.",
+  "notify.round_24h": "*Round {round}* runs in 24h. Auto-debit amount: *{amount} USDT*.",
+  "notify.round_executed": "Round {round} done. Winner: {winner}. Payout: *{payout} USDT*.",
+  "notify.default_member": "We could not auto-debit your contribution. You have 24h to top up.",
+  "notify.kye_completed": "Kye complete. Thanks for participating!"
+}

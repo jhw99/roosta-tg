@@ -1,0 +1,44 @@
+{
+  "name": "@roosta/shared",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./payout": {
+      "types": "./dist/payout.d.ts",
+      "import": "./dist/payout.js"
+    },
+    "./types": {
+      "types": "./dist/types.d.ts",
+      "import": "./dist/types.js"
+    },
+    "./env": {
+      "types": "./dist/env.d.ts",
+      "import": "./dist/env.js"
+    },
+    "./contractMessages": {
+      "types": "./dist/contractMessages.d.ts",
+      "import": "./dist/contractMessages.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "lint": "echo 'ok'"
+  },
+  "dependencies": {
+    "@ton/core": "^0.63.1",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "contracts": "workspace:*",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.4"
+  }
+}

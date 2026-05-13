@@ -1,0 +1,81 @@
+/**
+ * Roosta Design Tokens — CSS Variables
+ *
+ * Drop this file into app/styles/roosta-tokens.css (or globals.css)
+ * and import it at the top of your global stylesheet.
+ *
+ * For Tailwind v4: extend with @theme directive (see roosta-theme.css)
+ * For Tailwind v3: import these values into tailwind.config.ts
+ */
+
+:root {
+  /* ===== Brand Colors (Logo) ===== */
+  --roosta-orange-deep:    #C73E1D;  /* Deep red — accents, ring stroke (light bg) */
+  --roosta-orange-main:    #E85D2F;  /* Main brand color — primary buttons, links */
+  --roosta-orange-warm:    #F4A261;  /* Warm yellow-orange — secondary, hover */
+
+  /* ===== Background ===== */
+  --roosta-bg-light:       #FAFAF7;  /* Off-white — light mode background */
+  --roosta-bg-dark:        #1A1A1A;  /* Charcoal — dark mode background */
+
+  /* ===== Text ===== */
+  --roosta-text-dark:      #1A1A1A;  /* Primary text on light bg */
+  --roosta-text-light:     #FAFAF7;  /* Primary text on dark bg */
+  --roosta-text-muted:     #6A6A6A;  /* Secondary/helper text on light */
+  --roosta-text-muted-dark: #A0A0A0; /* Secondary/helper text on dark */
+
+  /* ===== Semantic (light mode default) ===== */
+  --roosta-primary:        var(--roosta-orange-main);
+  --roosta-primary-hover:  var(--roosta-orange-deep);
+  --roosta-secondary:      var(--roosta-orange-warm);
+  --roosta-background:     var(--roosta-bg-light);
+  --roosta-foreground:     var(--roosta-text-dark);
+  --roosta-muted:          var(--roosta-text-muted);
+  --roosta-border:         rgba(0, 0, 0, 0.08);
+  --roosta-card:           #FFFFFF;
+  --roosta-card-hover:     rgba(232, 93, 47, 0.04);
+
+  /* ===== State Colors ===== */
+  --roosta-success:        #22C55E;  /* Settled rounds */
+  --roosta-warning:        #F59E0B;  /* Delayed rounds */
+  --roosta-error:          #EF4444;  /* Failed transactions */
+  --roosta-info:           #3B82F6;  /* Informational badges */
+
+  /* ===== Spacing & Radius ===== */
+  --roosta-radius-sm:      0.375rem;
+  --roosta-radius-md:      0.625rem;
+  --roosta-radius-lg:      1rem;
+  --roosta-radius-full:    9999px;
+
+  /* ===== Typography ===== */
+  --roosta-font-display:   'Fraunces', Georgia, serif;     /* Distinctive, warm display */
+  --roosta-font-body:      'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --roosta-font-mono:      'JetBrains Mono', ui-monospace, monospace;
+}
+
+/* ===== Dark mode override ===== */
+.dark,
+[data-theme='dark'] {
+  --roosta-background:     var(--roosta-bg-dark);
+  --roosta-foreground:     var(--roosta-text-light);
+  --roosta-muted:          var(--roosta-text-muted-dark);
+  --roosta-border:         rgba(255, 255, 255, 0.10);
+  --roosta-card:           #242422;
+  --roosta-card-hover:     rgba(244, 162, 97, 0.08);
+
+  /* Logo ring color shifts to warm in dark mode */
+  --roosta-primary-hover:  var(--roosta-orange-warm);
+}
+
+/* ===== prefers-color-scheme support ===== */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --roosta-background:     var(--roosta-bg-dark);
+    --roosta-foreground:     var(--roosta-text-light);
+    --roosta-muted:          var(--roosta-text-muted-dark);
+    --roosta-border:         rgba(255, 255, 255, 0.10);
+    --roosta-card:           #242422;
+    --roosta-card-hover:     rgba(244, 162, 97, 0.08);
+    --roosta-primary-hover:  var(--roosta-orange-warm);
+  }
+}

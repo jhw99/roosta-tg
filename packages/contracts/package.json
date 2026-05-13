@@ -1,0 +1,27 @@
+{
+  "name": "contracts",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./build/KyeContract/KyeContract_KyeContract": "./build/KyeContract/KyeContract_KyeContract.ts",
+    "./build/KyeFactory/KyeFactory_KyeFactory": "./build/KyeFactory/KyeFactory_KyeFactory.ts",
+    "./build/KyeFactory/KyeFactory_KyeContract": "./build/KyeFactory/KyeFactory_KyeContract.ts"
+  },
+  "scripts": {
+    "build": "tact --config tact.config.json",
+    "test": "vitest run",
+    "lint": "echo 'ok'"
+  },
+  "dependencies": {
+    "@ton/core": "^0.63.1"
+  },
+  "devDependencies": {
+    "@tact-lang/compiler": "^1.5.3",
+    "@ton/crypto": "^3.3.0",
+    "@ton/sandbox": "^0.25.0",
+    "@ton/test-utils": "^0.5.0",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.4"
+  }
+}

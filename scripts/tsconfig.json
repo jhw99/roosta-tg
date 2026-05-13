@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "target": "es2022",
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "noEmit": true,
+    "allowImportingTsExtensions": false,
+    "baseUrl": "..",
+    "paths": {
+      "@ton/core": ["packages/contracts/node_modules/@ton/core"],
+      "@ton/crypto": ["packages/contracts/node_modules/@ton/crypto"],
+      "@ton/ton": ["packages/contracts/node_modules/@ton/ton"]
+    }
+  },
+  "include": ["./mainnet-deploy.ts"]
+}

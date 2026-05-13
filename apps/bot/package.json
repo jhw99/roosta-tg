@@ -1,0 +1,26 @@
+{
+  "name": "bot",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/run.js",
+  "scripts": {
+    "dev": "tsx watch src/run.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/run.js",
+    "test": "vitest run",
+    "lint": "echo 'ok'"
+  },
+  "dependencies": {
+    "@roosta/shared": "workspace:*",
+    "@supabase/supabase-js": "^2.105.4",
+    "grammy": "^1.30.0",
+    "pino": "^9.5.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.8.6",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.4"
+  }
+}

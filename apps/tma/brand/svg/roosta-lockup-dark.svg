@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 384" width="1200" height="384">
+    
+    
+        <g transform="translate(192.0, 192.0) rotate(0)">
+            <path d="M 0 -120.95999999999998 L -21.503999999999998 -75.264 L 21.503999999999998 -75.264 Z" fill="#E85D2F"/>
+        </g>
+        <g transform="translate(192.0, 192.0) rotate(72)">
+            <path d="M 0 -120.95999999999998 L -21.503999999999998 -75.264 L 21.503999999999998 -75.264 Z" fill="#F4A261"/>
+        </g>
+        <g transform="translate(192.0, 192.0) rotate(144)">
+            <path d="M 0 -120.95999999999998 L -21.503999999999998 -75.264 L 21.503999999999998 -75.264 Z" fill="#F4A261"/>
+        </g>
+        <g transform="translate(192.0, 192.0) rotate(216)">
+            <path d="M 0 -120.95999999999998 L -21.503999999999998 -75.264 L 21.503999999999998 -75.264 Z" fill="#F4A261"/>
+        </g>
+        <g transform="translate(192.0, 192.0) rotate(288)">
+            <path d="M 0 -120.95999999999998 L -21.503999999999998 -75.264 L 21.503999999999998 -75.264 Z" fill="#F4A261"/>
+        </g>
+    <circle cx="192.0" cy="192.0" r="59.13599999999999" fill="none" stroke="#F4A261" stroke-width="6.719999999999999"/>
+    <circle cx="192.0" cy="192.0" r="13.439999999999998" fill="#F4A261"/>
+    <text x="403.20000000000005" y="238.07999999999998" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="161.28" font-weight="500" fill="#FAFAF7" letter-spacing="-2">Roosta</text>
+</svg>

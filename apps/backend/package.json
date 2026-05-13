@@ -1,0 +1,37 @@
+{
+  "name": "backend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js",
+    "indexer": "tsx src/indexer/run.ts",
+    "scheduler": "tsx src/scheduler/run.ts",
+    "notifications": "tsx src/notifications/run.ts",
+    "test": "vitest run",
+    "lint": "echo 'ok'"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.13.2",
+    "@roosta/shared": "workspace:*",
+    "@supabase/supabase-js": "^2.105.4",
+    "@ton/core": "^0.63.1",
+    "@ton/crypto": "^3.3.0",
+    "@ton/ton": "^16.2.4",
+    "bullmq": "^5.21.2",
+    "contracts": "workspace:*",
+    "hono": "^4.6.9",
+    "ioredis": "^5.4.1",
+    "pino": "^9.5.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^22.8.6",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.4"
+  }
+}

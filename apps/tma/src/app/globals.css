@@ -1,0 +1,43 @@
+@import "tailwindcss";
+
+@theme {
+  /* Roosta brand primary (was Telegram blue #2481cc) */
+  --color-primary: #E85D2F;
+
+  /* Roosta palette */
+  --color-roosta-50: #FFF7F2;
+  --color-roosta-100: #FFEAD9;
+  --color-roosta-200: #FCD0AB;
+  --color-roosta-300: #F4A261;
+  --color-roosta-400: #ED7E47;
+  --color-roosta-500: #E85D2F;
+  --color-roosta-600: #D74E22;
+  --color-roosta-700: #C73E1D;
+  --color-roosta-800: #A03217;
+  --color-roosta-900: #6E2310;
+
+  /* State */
+  --color-success: #22C55E;
+  --color-warning: #F59E0B;
+  --color-error: #EF4444;
+
+  /* Telegram CSS variable hooks (OS-level theme inside Telegram) */
+  --color-bg: var(--tg-theme-bg-color, #FAFAF7);
+  --color-text: var(--tg-theme-text-color, #1A1A1A);
+  --color-hint: var(--tg-theme-hint-color, #6A6A6A);
+  --color-link: var(--tg-theme-link-color, #E85D2F);
+  --color-button: var(--tg-theme-button-color, #E85D2F);
+  --color-button-text: var(--tg-theme-button-text-color, #ffffff);
+  --color-secondary-bg: var(--tg-theme-secondary-bg-color, #f4f4f5);
+
+  /* Fonts (Inter loaded via next/font in layout.tsx) */
+  --font-display: var(--font-inter), 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-body: var(--font-inter), 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-sans: var(--font-inter), 'Inter', -apple-system, BlinkMacSystemFont, "Pretendard", "Segoe UI", Roboto, sans-serif;
+}
+
+html, body {
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-body);
+}

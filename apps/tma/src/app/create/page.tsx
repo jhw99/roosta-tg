@@ -219,7 +219,7 @@ export default function CreateKye() {
             {[1, 2, 3, 4].map((w) => (
               <label
                 key={w}
-                className={`flex-1 cursor-pointer rounded-lg border px-3 py-2 text-center text-sm ${
+                className={`flex-1 cursor-pointer rounded-lg border px-2 py-2 text-center text-xs whitespace-nowrap ${
                   intervalWeeks === w
                     ? 'border-[var(--color-primary)] bg-[var(--color-primary)] text-white'
                     : 'border-black/10'
@@ -298,7 +298,7 @@ export default function CreateKye() {
             ).map(([value, label]) => (
               <label
                 key={value}
-                className={`cursor-pointer rounded-lg border px-2 py-2 text-center text-xs ${
+                className={`cursor-pointer rounded-lg border px-2 py-2 text-center text-xs leading-tight whitespace-nowrap ${
                   policy === value
                     ? 'border-[var(--color-primary)] bg-[var(--color-primary)] text-white'
                     : 'border-black/10'

@@ -33,7 +33,7 @@ export const en = {
     defaultPolicy: 'Default policy',
     policyProRata: 'Pro Rata',
     policyCancel: 'Cancel',
-    policyOrganizerCover: 'Organizer Cover',
+    policyOrganizerCover: 'Organizer',
     payoutTable: 'Payout preview',
     expectedRevenue: 'Total expected organizer revenue',
     perRound: 'per round',

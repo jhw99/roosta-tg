@@ -83,7 +83,15 @@ export default function CreateKye() {
         alphaMaxBps: alphaBps,
         defaultPolicy: policy,
       };
-      const res = await api.createKye(params);
+      const res = await api.createKye({
+        name: params.name,
+        memberCount: N,
+        contribution: params.contribution,
+        roundIntervalSec: params.roundIntervalSec,
+        feeRateBps: params.feeRateBps,
+        alphaMaxBps: params.alphaMaxBps,
+        defaultPolicy: POLICY_TO_INT[policy],
+      });
 
       // Build a TON Connect transaction encoding the KyeFactory.createKye body.
       try {
@@ -316,6 +324,11 @@ export default function CreateKye() {
               </label>
             ))}
           </div>
+          <p className="mt-2 text-xs leading-relaxed text-black/60">
+            {policy === 'pro_rata' && s.create.policyProRataDesc}
+            {policy === 'cancel' && s.create.policyCancelDesc}
+            {policy === 'organizer_cover' && s.create.policyOrganizerCoverDesc}
+          </p>
         </Field>
       </section>
 

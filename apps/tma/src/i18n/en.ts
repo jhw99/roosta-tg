@@ -34,6 +34,12 @@ export const en = {
     policyProRata: 'Pro Rata',
     policyCancel: 'Cancel',
     policyOrganizerCover: 'Organizer',
+    policyProRataDesc:
+      'If a member fails to contribute, remaining members split a smaller payout proportionally. Circle keeps running.',
+    policyCancelDesc:
+      'If a member fails to contribute, the round is cancelled and everyone is refunded for that round.',
+    policyOrganizerCoverDesc:
+      'If a member fails to contribute, the organizer covers the gap so the recipient gets the full payout. Higher organizer risk.',
     payoutTable: 'Payout preview',
     expectedRevenue: 'Total expected organizer revenue',
     perRound: 'per round',

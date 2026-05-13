@@ -36,6 +36,12 @@ export const ko: Strings = {
     policyProRata: '비례 축소',
     policyCancel: '취소',
     policyOrganizerCover: '계주 보전',
+    policyProRataDesc:
+      '연체자가 생기면 남은 멤버끼리 그만큼 적은 금액을 비례해서 받습니다. 모임은 계속됩니다.',
+    policyCancelDesc:
+      '연체자가 생기면 해당 회차를 취소하고 그 회차에 낸 돈을 모두 환불합니다.',
+    policyOrganizerCoverDesc:
+      '연체자가 생기면 계주가 부족분을 대신 채워서 수령자는 원래 금액을 그대로 받습니다. 계주 리스크가 큽니다.',
     payoutTable: '페이아웃 미리보기',
     expectedRevenue: '예상 계주 총 수익',
     perRound: '라운드당',

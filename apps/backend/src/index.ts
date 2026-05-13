@@ -32,7 +32,13 @@ app.use(
       if (origin === 'http://localhost:3000') return origin;
       return null;
     },
-    allowHeaders: ['Authorization', 'Content-Type', 'X-Service-Token', 'X-Service-Telegram-Id'],
+    allowHeaders: [
+      'Authorization',
+      'Content-Type',
+      'X-Telegram-Init-Data',
+      'X-Service-Token',
+      'X-Service-Telegram-Id',
+    ],
     allowMethods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
     credentials: true,
     maxAge: 600,

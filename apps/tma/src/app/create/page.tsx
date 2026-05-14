@@ -128,7 +128,10 @@ export default function CreateKye() {
         if (txErr instanceof Error) setError(txErr.message);
       }
 
-      setInvite({ link: res.inviteLink, address: res.predictedAddress });
+      const inviteLink =
+        res.inviteLink ??
+        `https://t.me/RoostaApp_Bot/app?startapp=join_${res.predictedAddress}`;
+      setInvite({ link: inviteLink, address: res.predictedAddress });
     } catch (e) {
       setError(e instanceof Error ? e.message : s.common.error);
     } finally {

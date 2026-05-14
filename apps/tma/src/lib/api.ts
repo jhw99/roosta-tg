@@ -179,7 +179,8 @@ export const roundsResponseSchema = z.object({
 
 export const createKyeResponseSchema = z.object({
   predictedAddress: z.string(),
-  inviteLink: z.string(),
+  inviteLink: z.string().optional(),
+  params: z.unknown().optional(),
 });
 
 export const joinKyeResponseSchema = z.object({

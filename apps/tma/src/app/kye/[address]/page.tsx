@@ -2,20 +2,25 @@
 
 import { use, useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useTonConnectUI } from '@tonconnect/ui-react';
-import { buildContributeBody, cellToBase64 } from '@roosta/shared/contractMessages';
+import { Address, toNano } from '@ton/core';
+import { buildContributeBody } from '@roosta/shared/contractMessages';
 import { PageHeader } from '../../../components/PageHeader';
 import { StatusBadge } from '../../../components/StatusBadge';
 import { MemberRow } from '../../../components/MemberRow';
 import { Countdown } from '../../../components/Countdown';
 import { useStrings } from '../../../hooks/useStrings';
+import { useVault } from '../../../hooks/useVault';
 import { api, type ApiKye, type ApiMember } from '../../../lib/api';
+import { signAndRelay } from '../../../lib/vault';
 import { fmtUSDT, shortAddress, tonscanAddressUrl } from '../../../lib/format';
+
+// Gas margin added on top of the contribution amount the vault forwards.
+const CONTRIBUTE_GAS_MARGIN = toNano('0.02');
 
 export default function KyeDetail({ params }: { params: Promise<{ address: string }> }) {
   const { address } = use(params);
   const s = useStrings();
-  const [tonConnectUI] = useTonConnectUI();
+  const vault = useVault();
   const [kye, setKye] = useState<ApiKye | null>(null);
   const [members, setMembers] = useState<ApiMember[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -48,25 +53,28 @@ export default function KyeDetail({ params }: { params: Promise<{ address: strin
 
   const contribute = useCallback(async () => {
     if (!kye) return;
+    if (!vault.ready || !vault.vaultAddress) {
+      setError('Activate your gasless vault first (from the home screen).');
+      return;
+    }
     setContributing(true);
+    setError(null);
     try {
-      const body = buildContributeBody(kye.currentRound);
-      await tonConnectUI.sendTransaction({
-        validUntil: Math.floor(Date.now() / 1000) + 360,
-        messages: [
-          {
-            address: kye.contractAddress,
-            amount: '50000000',
-            payload: cellToBase64(body),
-          },
-        ],
+      // The vault forwards the contribution amount itself; the relayer covers
+      // gas. The contract refunds any excess back to the vault.
+      const amount = BigInt(kye.params.contribution) + CONTRIBUTE_GAS_MARGIN;
+      await signAndRelay({
+        vaultAddress: vault.vaultAddress,
+        target: Address.parse(kye.contractAddress),
+        amount,
+        body: buildContributeBody(kye.currentRound),
       });
     } catch (e) {
       setError(e instanceof Error ? e.message : s.common.error);
     } finally {
       setContributing(false);
     }
-  }, [kye, tonConnectUI, s.common.error]);
+  }, [kye, vault.ready, vault.vaultAddress, s.common.error]);
 
   const share = useCallback(() => {
     if (!kye) return;

@@ -2,22 +2,27 @@
 
 import { use, useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useTonConnectUI } from '@tonconnect/ui-react';
-import { buildJoinKyeBody, cellToBase64 } from '@roosta/shared/contractMessages';
+import { Address, toNano } from '@ton/core';
+import { buildJoinKyeBody } from '@roosta/shared/contractMessages';
 import { PageHeader } from '../../../components/PageHeader';
 import { PayoutTable } from '../../../components/PayoutTable';
 import { WarningCallout } from '../../../components/WarningCallout';
 import { MainButtonShim } from '../../../components/MainButtonShim';
 import { useStrings } from '../../../hooks/useStrings';
+import { useVault } from '../../../hooks/useVault';
 import { api, type ApiKye, type ApiMember } from '../../../lib/api';
 import { computeWarnings } from '../../../lib/warnings';
+import { signAndRelay } from '../../../lib/vault';
 import { fmtUSDT, shortAddress } from '../../../lib/format';
+
+// Gas-only forward for the JoinKye message (the contract takes no value here).
+const JOIN_FORWARD_TON = toNano('0.02');
 
 export default function JoinKye({ params }: { params: Promise<{ address: string }> }) {
   const { address } = use(params);
   const s = useStrings();
   const router = useRouter();
-  const [tonConnectUI] = useTonConnectUI();
+  const vault = useVault();
 
   const [kye, setKye] = useState<ApiKye | null>(null);
   const [members, setMembers] = useState<ApiMember[]>([]);
@@ -68,32 +73,29 @@ export default function JoinKye({ params }: { params: Promise<{ address: string 
 
   const submit = useCallback(async () => {
     if (!kye || selected == null) return;
+    if (!vault.ready || !vault.vaultAddress) {
+      setError('Activate your gasless vault first (from the home screen).');
+      return;
+    }
     setJoining(true);
     setError(null);
     try {
-      await api.joinKye(address, { order: selected });
-      try {
-        const joinBody = buildJoinKyeBody(selected);
-        await tonConnectUI.sendTransaction({
-          validUntil: Math.floor(Date.now() / 1000) + 360,
-          messages: [
-            {
-              address: kye.contractAddress,
-              amount: '50000000',
-              payload: cellToBase64(joinBody),
-            },
-          ],
-        });
-      } catch (txErr) {
-        if (txErr instanceof Error) setError(txErr.message);
-      }
+      await api.joinKye(address, { orderNum: selected });
+      // The vault is the on-chain member. Sign the JoinKye intent with the
+      // session key and relay it — no wallet popup, no gas.
+      await signAndRelay({
+        vaultAddress: vault.vaultAddress,
+        target: Address.parse(kye.contractAddress),
+        amount: JOIN_FORWARD_TON,
+        body: buildJoinKyeBody(selected),
+      });
       router.push(`/kye/${kye.contractAddress}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : s.common.error);
     } finally {
       setJoining(false);
     }
-  }, [kye, selected, address, tonConnectUI, router, s.common.error]);
+  }, [kye, selected, address, vault.ready, vault.vaultAddress, router, s.common.error]);
 
   if (loading) {
     return (

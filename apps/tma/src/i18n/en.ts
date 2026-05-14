@@ -121,6 +121,20 @@ export const en = {
     disconnect: 'Disconnect',
     rePair: 'Re-pair',
   },
+  vault: {
+    activateTitle: 'Activate gasless Roosta',
+    activateTagline: 'One transaction now — every circle action is free after.',
+    activateBody:
+      'Roosta deploys a personal vault that holds your funds and runs your actions for you. You sign once to fund it; creating, joining and contributing to circles costs you no gas ever again.',
+    fundingAmount: 'Initial deposit',
+    activateCta: 'Activate vault',
+    activating: 'Activating…',
+    activateHint: 'You can top up or withdraw from your vault any time.',
+    vaultBalance: 'Vault balance',
+    notActivated: 'Vault not activated',
+    topUp: 'Top up',
+    relaying: 'Submitting…',
+  },
   warnings: {
     highFeeAlpha: 'Slot #1 receives less than 80% of the pool.',
     highFee: 'Fee rate is well above market average.',

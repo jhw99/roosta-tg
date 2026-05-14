@@ -123,6 +123,20 @@ export const ko: Strings = {
     disconnect: '연결 해제',
     rePair: '재연결',
   },
+  vault: {
+    activateTitle: '가스리스 Roosta 활성화',
+    activateTagline: '지금 한 번만 서명하면 이후 모든 계 활동은 가스 무료입니다.',
+    activateBody:
+      'Roosta가 회원님 전용 볼트를 배포합니다. 볼트가 자금을 보관하고 대신 거래를 실행합니다. 한 번 서명해 자금을 넣으면 계 생성·참여·납입에 다시는 가스를 내지 않습니다.',
+    fundingAmount: '초기 예치금',
+    activateCta: '볼트 활성화',
+    activating: '활성화 중…',
+    activateHint: '볼트는 언제든 충전하거나 출금할 수 있습니다.',
+    vaultBalance: '볼트 잔액',
+    notActivated: '볼트 미활성화',
+    topUp: '충전',
+    relaying: '제출 중…',
+  },
   warnings: {
     highFeeAlpha: '1번 순서가 풀의 80% 미만입니다.',
     highFee: '수수료가 시장 평균보다 매우 높습니다.',

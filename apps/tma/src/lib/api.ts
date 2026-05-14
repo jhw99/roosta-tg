@@ -108,6 +108,8 @@ export const userSchema = z.object({
   walletAddress: z.string().nullable(),
   language: z.enum(['ko', 'en']).optional(),
   createdAt: z.number().optional(),
+  vaultAddress: z.string().nullable().optional(),
+  sessionPubkey: z.string().nullable().optional(),
 });
 export type ApiUser = z.infer<typeof userSchema>;
 
@@ -246,4 +248,51 @@ export const api = {
       method: 'PATCH',
       body,
     }),
+
+  // --- Gasless vault ---
+  saveVault: async (sessionPubkey: string, vaultAddress: string) => {
+    if (isDemoMode()) return { ok: true, vaultAddress };
+    return apiRequest(
+      '/me/vault',
+      z.object({ ok: z.boolean(), vaultAddress: z.string() }),
+      { method: 'PATCH', body: { sessionPubkey, vaultAddress } },
+    );
+  },
+  vaultState: async (vaultAddress: string) => {
+    if (isDemoMode()) {
+      return { deployed: true, seqno: '0', balance: '5000000000', pubKey: '00'.repeat(32) };
+    }
+    return apiRequest(
+      `/relay/state?vault=${encodeURIComponent(vaultAddress)}`,
+      z.object({
+        deployed: z.boolean(),
+        seqno: z.string(),
+        balance: z.string(),
+        pubKey: z.string(),
+      }),
+    );
+  },
+  relay: async (body: {
+    vaultAddress: string;
+    intent: {
+      seqno: string;
+      validUntil: string;
+      target: string;
+      amount: string;
+      mode: number;
+      body: string;
+    };
+    signature: string;
+  }) => {
+    if (isDemoMode()) return { ok: true, intentSeqno: body.intent.seqno, walletSeqno: 0 };
+    return apiRequest(
+      '/relay',
+      z.object({
+        ok: z.boolean(),
+        intentSeqno: z.string(),
+        walletSeqno: z.number(),
+      }),
+      { method: 'POST', body },
+    );
+  },
 };

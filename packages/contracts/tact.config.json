@@ -11,6 +11,12 @@
       "path": "contracts/KyeContract.tact",
       "output": "build/KyeContract",
       "options": { "debug": true }
+    },
+    {
+      "name": "RoostaVault",
+      "path": "contracts/RoostaVault.tact",
+      "output": "build/RoostaVault",
+      "options": { "debug": true }
     }
   ]
 }

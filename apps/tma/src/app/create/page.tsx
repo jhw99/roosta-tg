@@ -2,10 +2,9 @@
 
 import { useCallback, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useTonConnectUI, useTonAddress, TonConnectButton } from '@tonconnect/ui-react';
-import { Address } from '@ton/core';
+import { Address, toNano } from '@ton/core';
 import { calculate_payout } from '@roosta/shared/payout';
-import { buildCreateKyeBody, cellToBase64 } from '@roosta/shared/contractMessages';
+import { buildCreateKyeBody } from '@roosta/shared/contractMessages';
 import type { DefaultPolicy } from '@roosta/shared';
 
 const POLICY_TO_INT: Record<DefaultPolicy, number> = {
@@ -19,19 +18,23 @@ import { WarningCallout } from '../../components/WarningCallout';
 import { MainButtonShim } from '../../components/MainButtonShim';
 import { ConfirmationDialog } from '../../components/ConfirmationDialog';
 import { useStrings } from '../../hooks/useStrings';
+import { useVault } from '../../hooks/useVault';
 import { computeWarnings } from '../../lib/warnings';
 import { USDT_SCALE, fmtUSDT } from '../../lib/format';
+import { signAndRelay } from '../../lib/vault';
 import { api } from '../../lib/api';
 
 const FACTORY_ADDRESS =
   process.env.NEXT_PUBLIC_KYE_FACTORY_ADDRESS ??
   'EQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
 
+// Must cover KyeFactory's CHILD_INITIAL_TON (0.15 TON) so the child kye deploys.
+const CREATE_FORWARD_TON = toNano('0.15');
+
 export default function CreateKye() {
   const s = useStrings();
   const router = useRouter();
-  const [tonConnectUI] = useTonConnectUI();
-  const userAddress = useTonAddress();
+  const vault = useVault();
 
   const [name, setName] = useState('');
   const [N, setN] = useState(5);
@@ -74,59 +77,45 @@ export default function CreateKye() {
     setSubmitting(true);
     setError(null);
     try {
-      if (!userAddress) {
-        throw new Error('Please connect a TON wallet first (tap the wallet button at the top).');
+      if (!vault.ready || !vault.vaultAddress) {
+        throw new Error('Activate your gasless vault first (from the home screen).');
       }
-      const params = {
+      const roundIntervalSec = intervalWeeks * 7 * 24 * 3600;
+      // One salt, used for BOTH the backend address prediction and the on-chain
+      // CreateKye body, so the predicted address matches what gets deployed.
+      const salt =
+        BigInt(Math.floor(Date.now() / 1000)) ^
+        BigInt(Math.floor(Math.random() * 0xffff_ffff));
+
+      const res = await api.createKye({
         name: name.trim() || 'Untitled Kye',
-        N,
+        memberCount: N,
         contribution: C.toString(),
-        roundIntervalSec: intervalWeeks * 7 * 24 * 3600,
+        roundIntervalSec,
         feeRateBps: feeBps,
         alphaMaxBps: alphaBps,
-        defaultPolicy: policy,
-      };
-      const res = await api.createKye({
-        name: params.name,
-        memberCount: N,
-        contribution: params.contribution,
-        roundIntervalSec: params.roundIntervalSec,
-        feeRateBps: params.feeRateBps,
-        alphaMaxBps: params.alphaMaxBps,
         defaultPolicy: POLICY_TO_INT[policy],
+        salt: salt.toString(),
       });
 
-      // Build a TON Connect transaction encoding the KyeFactory.createKye body.
-      try {
-        if (!userAddress) {
-          throw new Error('Connect a TON wallet first');
-        }
-        const salt = BigInt(Math.floor(Date.now() / 1000)) ^
-          BigInt(Math.floor(Math.random() * 0xffff_ffff));
-        const body = buildCreateKyeBody({
-          organizer: Address.parse(userAddress),
-          memberCount: BigInt(N),
-          contribution: C,
-          roundIntervalSec: BigInt(params.roundIntervalSec),
-          feeRateBps: BigInt(feeBps),
-          timeAdjustmentMaxBps: BigInt(alphaBps),
-          defaultPolicy: BigInt(POLICY_TO_INT[policy]),
-          salt,
-        });
-        await tonConnectUI.sendTransaction({
-          validUntil: Math.floor(Date.now() / 1000) + 360,
-          messages: [
-            {
-              address: FACTORY_ADDRESS,
-              amount: '50000000', // 0.05 TON for gas
-              payload: cellToBase64(body),
-            },
-          ],
-        });
-      } catch (txErr) {
-        // If user rejected, surface but keep invite link visible.
-        if (txErr instanceof Error) setError(txErr.message);
-      }
+      // The vault is the on-chain organizer. Sign the CreateKye intent with the
+      // session key and relay it — no wallet popup, no gas.
+      const body = buildCreateKyeBody({
+        organizer: Address.parse(vault.vaultAddress),
+        memberCount: BigInt(N),
+        contribution: C,
+        roundIntervalSec: BigInt(roundIntervalSec),
+        feeRateBps: BigInt(feeBps),
+        timeAdjustmentMaxBps: BigInt(alphaBps),
+        defaultPolicy: BigInt(POLICY_TO_INT[policy]),
+        salt,
+      });
+      await signAndRelay({
+        vaultAddress: vault.vaultAddress,
+        target: Address.parse(FACTORY_ADDRESS),
+        amount: CREATE_FORWARD_TON,
+        body,
+      });
 
       const inviteLink =
         res.inviteLink ??
@@ -138,7 +127,7 @@ export default function CreateKye() {
       setSubmitting(false);
       setConfirmOpen(false);
     }
-  }, [name, N, C, intervalWeeks, feeBps, alphaBps, policy, tonConnectUI, userAddress, s.common.error]);
+  }, [name, N, C, intervalWeeks, feeBps, alphaBps, policy, vault.ready, vault.vaultAddress, s.common.error]);
 
   const copyInvite = useCallback(async () => {
     if (!invite) return;
@@ -198,10 +187,9 @@ export default function CreateKye() {
     <main>
       <PageHeader title={s.create.title} subtitle={s.create.subtitle} />
       <section className="p-4 grid gap-4">
-        {!userAddress && (
-          <div className="flex items-center justify-between rounded-xl border border-[var(--color-primary)] bg-[var(--color-primary)]/5 px-3 py-2">
-            <span className="text-sm font-medium">{s.home.connectCta}</span>
-            <TonConnectButton />
+        {!vault.ready && (
+          <div className="rounded-xl border border-[var(--color-primary)] bg-[var(--color-primary)]/5 px-3 py-2 text-sm font-medium">
+            {s.vault.notActivated} — {s.vault.activateCta}
           </div>
         )}
 

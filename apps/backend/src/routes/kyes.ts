@@ -158,8 +158,9 @@ kyes.post('/', async (c) => {
 
   const user = await resolveOrCreateUser(sb, tg);
   if (!user) return fail(c, 500, 'user_upsert', 'Could not create user row');
-  if (!user.wallet_address) {
-    return fail(c, 403, 'no_wallet', 'Connect a TON wallet before creating a Kye');
+  // The vault is the on-chain organizer identity (gasless proxy model).
+  if (!user.vault_address) {
+    return fail(c, 403, 'no_vault', 'Activate your gasless vault before creating a Kye');
   }
   const platformTreasury = process.env.PLATFORM_TREASURY_ADDRESS;
   if (!platformTreasury) {
@@ -171,7 +172,7 @@ kyes.post('/', async (c) => {
   const saltVal: bigint = parsed.data.salt !== undefined
     ? BigInt(parsed.data.salt)
     : BigInt(Date.now());
-  const predicted = await predictAddress(parsed.data, user.wallet_address, platformTreasury, saltVal);
+  const predicted = await predictAddress(parsed.data, user.vault_address, platformTreasury, saltVal);
   return c.json({
     ok: true,
     params: { ...parsed.data, contribution: contribution.toString(), salt: saltVal.toString() },
@@ -198,8 +199,9 @@ kyes.post('/:id/join', async (c) => {
 
   const user = await resolveOrCreateUser(sb, tg);
   if (!user) return fail(c, 500, 'user_upsert', 'Could not create user row');
-  if (!user.wallet_address) {
-    return fail(c, 403, 'no_wallet', 'User must link a TON wallet before joining');
+  // The vault is the on-chain member identity (gasless proxy model).
+  if (!user.vault_address) {
+    return fail(c, 403, 'no_vault', 'Activate your gasless vault before joining');
   }
 
   const { data: kye } = await sb

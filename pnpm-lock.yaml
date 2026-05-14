@@ -119,12 +119,18 @@ importers:
       '@ton/core':
         specifier: ^0.63.1
         version: 0.63.1(@ton/crypto@3.3.0)
+      '@ton/crypto':
+        specifier: ^3.3.0
+        version: 3.3.0
       '@tonconnect/ui-react':
         specifier: ^2.0.10
         version: 2.4.4(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       '@twa-dev/sdk':
         specifier: ^7.10.1
         version: 7.10.1(react@19.2.6)
+      contracts:
+        specifier: workspace:*
+        version: link:../../packages/contracts
       next:
         specifier: ^15.0.3
         version: 15.5.18(@babel/core@7.29.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
@@ -210,6 +216,9 @@ importers:
       '@ton/core':
         specifier: ^0.63.1
         version: 0.63.1(@ton/crypto@3.3.0)
+      '@ton/crypto':
+        specifier: ^3.3.0
+        version: 3.3.0
       zod:
         specifier: ^3.23.8
         version: 3.25.76

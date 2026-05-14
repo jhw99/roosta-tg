@@ -7,6 +7,7 @@ import { initDataMiddleware } from './middleware/initData.js';
 import { serviceOrInitDataMiddleware } from './middleware/serviceAuth.js';
 import { kyes } from './routes/kyes.js';
 import { me } from './routes/me.js';
+import { relay } from './routes/relay.js';
 import { EventIndexer } from './indexer/indexer.js';
 
 const env = loadEnv();
@@ -58,6 +59,7 @@ app.use('/me', serviceMw);
 app.use('/me/notification-settings', serviceMw);
 app.use('/me/*', initDataMiddleware(env.TELEGRAM_BOT_TOKEN));
 app.use('/kyes', initDataMiddleware(env.TELEGRAM_BOT_TOKEN));
+app.use('/relay', initDataMiddleware(env.TELEGRAM_BOT_TOKEN));
 // Bot reads kye detail via GET /kyes/:id; other /kyes/* (POST create, join, rounds)
 // stay under strict initData auth.
 app.use('/kyes/:id', async (c, next) => {
@@ -68,6 +70,7 @@ app.use('/kyes/*', initDataMiddleware(env.TELEGRAM_BOT_TOKEN));
 
 app.route('/me', me);
 app.route('/kyes', kyes);
+app.route('/relay', relay);
 
 const indexer = new EventIndexer();
 void indexer.start();

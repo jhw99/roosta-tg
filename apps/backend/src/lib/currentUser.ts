@@ -27,6 +27,8 @@ export interface AppUser {
   telegram_id: number;
   wallet_address: string | null;
   language: string;
+  vault_address: string | null;
+  session_pubkey: string | null;
 }
 
 /** Find-or-create the users row for a Telegram user. */
@@ -37,7 +39,7 @@ export async function resolveOrCreateUser(
   const language = (tg.language_code ?? 'en').startsWith('ko') ? 'ko' : 'en';
   const { data: existing } = await supabase
     .from('users')
-    .select('id, telegram_id, wallet_address, language')
+    .select('id, telegram_id, wallet_address, language, vault_address, session_pubkey')
     .eq('telegram_id', tg.id)
     .maybeSingle();
   if (existing) {
@@ -46,12 +48,14 @@ export async function resolveOrCreateUser(
       telegram_id: Number(existing.telegram_id),
       wallet_address: (existing.wallet_address as string) ?? null,
       language: (existing.language as string) ?? 'en',
+      vault_address: (existing.vault_address as string) ?? null,
+      session_pubkey: (existing.session_pubkey as string) ?? null,
     };
   }
   const { data: inserted, error } = await supabase
     .from('users')
     .insert({ telegram_id: tg.id, language })
-    .select('id, telegram_id, wallet_address, language')
+    .select('id, telegram_id, wallet_address, language, vault_address, session_pubkey')
     .maybeSingle();
   if (error || !inserted) return null;
   return {
@@ -59,5 +63,7 @@ export async function resolveOrCreateUser(
     telegram_id: Number(inserted.telegram_id),
     wallet_address: (inserted.wallet_address as string) ?? null,
     language: (inserted.language as string) ?? language,
+    vault_address: (inserted.vault_address as string) ?? null,
+    session_pubkey: (inserted.session_pubkey as string) ?? null,
   };
 }

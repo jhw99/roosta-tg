@@ -6,7 +6,8 @@
   "exports": {
     "./build/KyeContract/KyeContract_KyeContract": "./build/KyeContract/KyeContract_KyeContract.ts",
     "./build/KyeFactory/KyeFactory_KyeFactory": "./build/KyeFactory/KyeFactory_KyeFactory.ts",
-    "./build/KyeFactory/KyeFactory_KyeContract": "./build/KyeFactory/KyeFactory_KyeContract.ts"
+    "./build/KyeFactory/KyeFactory_KyeContract": "./build/KyeFactory/KyeFactory_KyeContract.ts",
+    "./build/RoostaVault/RoostaVault_RoostaVault": "./build/RoostaVault/RoostaVault_RoostaVault.ts"
   },
   "scripts": {
     "build": "tact --config tact.config.json",

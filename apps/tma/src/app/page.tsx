@@ -2,19 +2,20 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useTonAddress, TonConnectButton } from '@tonconnect/ui-react';
 import { PageHeader } from '../components/PageHeader';
 import { Logo } from '../components/Logo';
 import { KyeCard } from '../components/KyeCard';
 import { MainButtonShim } from '../components/MainButtonShim';
+import { VaultActivation } from '../components/VaultActivation';
 import { api, type ApiKye } from '../lib/api';
 import { useStrings } from '../hooks/useStrings';
+import { useVault } from '../hooks/useVault';
 import { useAppStore } from '../store';
 
 export default function Home() {
   const s = useStrings();
   const router = useRouter();
-  const userAddress = useTonAddress();
+  const vault = useVault();
   const setKyes = useAppStore((st) => st.setKyes);
   const setUser = useAppStore((st) => st.setUser);
   const kyes = useAppStore((st) => st.kyes);
@@ -75,20 +76,7 @@ export default function Home() {
         <Logo variant="stacked" size={96} priority />
       </div>
       <PageHeader title={s.home.title} subtitle={s.tagline} showIcon={false} />
-      {!userAddress && (
-        <section className="p-4">
-          <div className="rounded-2xl border border-black/5 bg-[var(--color-secondary-bg)] p-6 text-center space-y-3">
-            <h2 className="text-lg font-bold text-[var(--color-primary)]">
-              {s.home.connectTitle}
-            </h2>
-            <p className="text-sm font-medium">{s.home.connectTagline}</p>
-            <p className="text-sm leading-relaxed opacity-70">{s.home.connectBody}</p>
-            <div className="flex justify-center pt-1">
-              <TonConnectButton />
-            </div>
-          </div>
-        </section>
-      )}
+      {!vault.ready && <VaultActivation vault={vault} />}
       {refreshing && <p className="px-4 py-2 text-xs opacity-70">{s.home.refreshing}</p>}
       <section className="p-4 space-y-3 pb-24">
         {loading && <p className="opacity-70">{s.common.loading}</p>}
@@ -116,7 +104,7 @@ export default function Home() {
           <KyeCard key={k.id} kye={k} strings={s} />
         ))}
       </section>
-      <MainButtonShim text={s.home.mainButton} onClick={goCreate} visible={!!userAddress} />
+      <MainButtonShim text={s.home.mainButton} onClick={goCreate} visible={vault.ready} />
     </main>
   );
 }

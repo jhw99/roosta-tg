@@ -74,6 +74,9 @@ export default function CreateKye() {
     setSubmitting(true);
     setError(null);
     try {
+      if (!userAddress) {
+        throw new Error('Please connect a TON wallet first (tap the wallet button at the top).');
+      }
       const params = {
         name: name.trim() || 'Untitled Kye',
         N,

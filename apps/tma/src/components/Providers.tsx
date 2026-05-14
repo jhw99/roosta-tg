@@ -9,7 +9,8 @@ import { useAppStore } from '../store';
 import { markDemoMode, getDemoMe } from '../lib/demo';
 
 const MANIFEST_URL =
-  process.env.NEXT_PUBLIC_TONCONNECT_MANIFEST_URL ?? '/tonconnect-manifest.json';
+  process.env.NEXT_PUBLIC_TONCONNECT_MANIFEST_URL ??
+  'https://roosta-tg.vercel.app/tonconnect-manifest.json';
 
 export function Providers({ children }: { children: ReactNode }) {
   const router = useRouter();

@@ -3,6 +3,7 @@
 import { useEffect, type ReactNode } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { TonConnectUIProvider } from '@tonconnect/ui-react';
+import { WalletSync } from './WalletSync';
 import { getWebApp, getTelegramLanguage } from '../lib/webapp';
 import { detectLang } from '../i18n';
 import { useAppStore } from '../store';
@@ -87,5 +88,10 @@ export function Providers({ children }: { children: ReactNode }) {
     };
   }, [pathname, router]);
 
-  return <TonConnectUIProvider manifestUrl={MANIFEST_URL}>{children}</TonConnectUIProvider>;
+  return (
+    <TonConnectUIProvider manifestUrl={MANIFEST_URL}>
+      <WalletSync />
+      {children}
+    </TonConnectUIProvider>
+  );
 }

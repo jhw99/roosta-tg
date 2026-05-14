@@ -43,6 +43,32 @@ me.get('/', async (c) => {
   });
 });
 
+const WalletBody = z.object({
+  walletAddress: z.string().min(10).max(100),
+});
+
+me.patch('/wallet', async (c) => {
+  const sb = getSupabase();
+  if (!sb) return fail(c, 500, 'no_db', 'Database not configured');
+  const tg = extractTelegramUser(c);
+  if (!tg) return fail(c, 401, 'no_user', 'No Telegram user in initData');
+
+  const body = await c.req.json().catch(() => null);
+  const parsed = WalletBody.safeParse(body);
+  if (!parsed.success) return fail(c, 400, 'invalid_body', parsed.error.message);
+
+  const user = await resolveOrCreateUser(sb, tg);
+  if (!user) return fail(c, 500, 'user_upsert', 'Could not create user row');
+
+  const { error } = await sb
+    .from('users')
+    .update({ wallet_address: parsed.data.walletAddress })
+    .eq('id', user.id);
+  if (error) return fail(c, 500, 'db_error', error.message);
+
+  return c.json({ ok: true, walletAddress: parsed.data.walletAddress });
+});
+
 const NotificationSettingsBody = z.object({
   settings: z.record(z.string(), z.boolean()),
 });

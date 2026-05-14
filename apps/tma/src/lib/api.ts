@@ -209,6 +209,14 @@ export const api = {
     if (isDemoMode()) return getDemoMe(demoEmptyRequested());
     return apiRequest('/me', meResponseSchema);
   },
+  saveWallet: async (walletAddress: string) => {
+    if (isDemoMode()) return { ok: true, walletAddress };
+    return apiRequest(
+      '/me/wallet',
+      z.object({ ok: z.boolean(), walletAddress: z.string() }),
+      { method: 'PATCH', body: { walletAddress } },
+    );
+  },
   kye: async (address: string) => {
     if (isDemoMode()) return getDemoKye(address);
     return apiRequest(`/kyes/${address}`, kyeDetailSchema);

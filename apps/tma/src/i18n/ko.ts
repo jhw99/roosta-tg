@@ -19,6 +19,11 @@ export const ko: Strings = {
     nextRoundIn: '다음 라운드까지',
     members: '계원',
     contribution: '기여금',
+    connectTitle: '함께 모으는 온체인 계',
+    connectTagline: 'Roosta는 전통 "계"를 텔레그램으로 가져왔습니다.',
+    connectBody:
+      'TON 지갑을 연결하면 계를 만들거나 참여할 수 있습니다. 매 라운드마다 계원이 기여금을 내고, 한 명이 모인 금액을 수령합니다 — 중개자 없이 완전히 온체인으로.',
+    connectCta: 'TON 지갑 연결',
   },
   create: {
     title: '계 만들기',

@@ -17,6 +17,11 @@ export const en = {
     nextRoundIn: 'Next round in',
     members: 'Members',
     contribution: 'Contribution',
+    connectTitle: 'Save together, on-chain',
+    connectTagline: 'Roosta brings the rotating savings circle to Telegram.',
+    connectBody:
+      'Connect your TON wallet to create or join a circle. Members contribute each round, and one member receives the pooled payout — fully on-chain, no middleman.',
+    connectCta: 'Connect TON wallet',
   },
   create: {
     title: 'Create a circle',

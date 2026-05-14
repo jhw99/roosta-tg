@@ -20,7 +20,7 @@ import { MainButtonShim } from '../../components/MainButtonShim';
 import { ConfirmationDialog } from '../../components/ConfirmationDialog';
 import { useStrings } from '../../hooks/useStrings';
 import { computeWarnings } from '../../lib/warnings';
-import { USDT_SCALE, fmtUSDT, shortAddress } from '../../lib/format';
+import { USDT_SCALE, fmtUSDT } from '../../lib/format';
 import { api } from '../../lib/api';
 
 const FACTORY_ADDRESS =
@@ -195,12 +195,12 @@ export default function CreateKye() {
     <main>
       <PageHeader title={s.create.title} subtitle={s.create.subtitle} />
       <section className="p-4 grid gap-4">
-        <div className="flex items-center justify-between rounded-xl border border-black/10 px-3 py-2">
-          <span className="text-sm">
-            {userAddress ? shortAddress(userAddress, 4, 4) : 'Connect a TON wallet'}
-          </span>
-          <TonConnectButton />
-        </div>
+        {!userAddress && (
+          <div className="flex items-center justify-between rounded-xl border border-[var(--color-primary)] bg-[var(--color-primary)]/5 px-3 py-2">
+            <span className="text-sm font-medium">{s.home.connectCta}</span>
+            <TonConnectButton />
+          </div>
+        )}
 
         <Field label={s.create.name}>
           <input

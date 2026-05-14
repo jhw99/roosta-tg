@@ -60,6 +60,7 @@ app.use('/me/notification-settings', serviceMw);
 app.use('/me/*', initDataMiddleware(env.TELEGRAM_BOT_TOKEN));
 app.use('/kyes', initDataMiddleware(env.TELEGRAM_BOT_TOKEN));
 app.use('/relay', initDataMiddleware(env.TELEGRAM_BOT_TOKEN));
+app.use('/relay/*', initDataMiddleware(env.TELEGRAM_BOT_TOKEN));
 // Bot reads kye detail via GET /kyes/:id; other /kyes/* (POST create, join, rounds)
 // stay under strict initData auth.
 app.use('/kyes/:id', async (c, next) => {

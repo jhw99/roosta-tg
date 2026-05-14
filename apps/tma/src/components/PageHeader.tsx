@@ -21,7 +21,7 @@ export function PageHeader({
   return (
     <header className="px-4 pt-6 pb-4 border-b border-black/5">
       <div className="flex items-center gap-2">
-        {showIcon && <Logo variant="icon" size={28} />}
+        {showIcon && <Logo variant="icon" size={32} priority />}
         <h1 className="text-2xl font-bold" style={{ color: 'var(--color-primary)' }}>
           {title}
         </h1>

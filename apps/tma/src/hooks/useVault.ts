@@ -10,6 +10,7 @@ import {
 } from '../lib/sessionKey';
 import {
   buildActivationMessage,
+  buildTopUpMessage,
   fetchVaultState,
   predictVaultAddress,
   registerVault,
@@ -27,8 +28,10 @@ export interface UseVault {
   error: string | null;
   /** True when the vault is deployed and usable for gasless intents. */
   ready: boolean;
-  /** Run the one-time activation: deploy + fund the vault, then register it. */
-  activate: (fundingTon: string) => Promise<void>;
+  /** Run the one-time activation: deploy the vault, then register it. */
+  activate: (fundingTon?: string) => Promise<void>;
+  /** Top up an already-deployed vault with a plain transfer from the owner wallet. */
+  topUp: (amountTon: string) => Promise<void>;
   refresh: () => Promise<void>;
 }
 
@@ -88,7 +91,7 @@ export function useVault(): UseVault {
   }, [refresh]);
 
   const activate = useCallback(
-    async (fundingTon: string) => {
+    async (fundingTon?: string) => {
       if (!ownerAddress) throw new Error('Connect a TON wallet first.');
       setLoading(true);
       setError(null);
@@ -129,6 +132,36 @@ export function useVault(): UseVault {
     [ownerAddress, tonConnectUI],
   );
 
+  const topUp = useCallback(
+    async (amountTon: string) => {
+      if (!vaultAddress) throw new Error('Vault address not derived yet.');
+      setLoading(true);
+      setError(null);
+      try {
+        const before = state?.balance ?? 0n;
+        const msg = buildTopUpMessage(vaultAddress, amountTon);
+        await tonConnectUI.sendTransaction({
+          validUntil: Math.floor(Date.now() / 1000) + 360,
+          messages: [{ address: msg.address, amount: msg.amount }],
+        });
+        // Poll until the balance bump lands (or give up after ~45s).
+        for (let i = 0; i < 15; i++) {
+          await new Promise((r) => setTimeout(r, 3000));
+          const s = await fetchVaultState(vaultAddress);
+          setState(s);
+          if (s.balance > before) break;
+        }
+      } catch (e) {
+        const m = e instanceof Error ? e.message : 'top-up failed';
+        setError(m);
+        throw e;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [vaultAddress, tonConnectUI, state?.balance],
+  );
+
   return {
     ownerAddress,
     vaultAddress,
@@ -137,6 +170,7 @@ export function useVault(): UseVault {
     error,
     ready: !!state?.deployed,
     activate,
+    topUp,
     refresh,
   };
 }

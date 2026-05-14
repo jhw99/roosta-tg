@@ -17,6 +17,10 @@ import { fmtUSDT, shortAddress } from '../../../lib/format';
 
 // Gas-only forward for the JoinKye message (the contract takes no value here).
 const JOIN_FORWARD_TON = toNano('0.02');
+// One-time vault activation funding when a user joins their first circle:
+// covers the vault deploy + storage reserve + the join message, with headroom
+// for an upcoming contribution. Larger deposits go through the Wallet page.
+const JOIN_ACTIVATION_FUNDING_TON = '0.3';
 
 export default function JoinKye({ params }: { params: Promise<{ address: string }> }) {
   const { address } = use(params);
@@ -73,18 +77,27 @@ export default function JoinKye({ params }: { params: Promise<{ address: string 
 
   const submit = useCallback(async () => {
     if (!kye || selected == null) return;
-    if (!vault.ready || !vault.vaultAddress) {
-      setError('Activate your gasless vault first (from the home screen).');
+    if (!vault.ownerAddress) {
+      setError('Connect a TON wallet first (wallet button, top-right).');
       return;
     }
     setJoining(true);
     setError(null);
     try {
+      // First-time use: activate the gasless vault. One wallet transaction
+      // deploys it and funds the join; everything after is gasless.
+      let vaultAddress = vault.vaultAddress;
+      if (!vault.ready) {
+        await vault.activate(JOIN_ACTIVATION_FUNDING_TON);
+        vaultAddress = vault.vaultAddress;
+      }
+      if (!vaultAddress) throw new Error('Vault not ready yet — try again in a moment.');
+
       await api.joinKye(address, { orderNum: selected });
       // The vault is the on-chain member. Sign the JoinKye intent with the
       // session key and relay it — no wallet popup, no gas.
       await signAndRelay({
-        vaultAddress: vault.vaultAddress,
+        vaultAddress,
         target: Address.parse(kye.contractAddress),
         amount: JOIN_FORWARD_TON,
         body: buildJoinKyeBody(selected),
@@ -95,7 +108,10 @@ export default function JoinKye({ params }: { params: Promise<{ address: string 
     } finally {
       setJoining(false);
     }
-  }, [kye, selected, address, vault.ready, vault.vaultAddress, router, s.common.error]);
+  }, [
+    kye, selected, address, router, s.common.error,
+    vault.ready, vault.vaultAddress, vault.ownerAddress, vault.activate,
+  ]);
 
   if (loading) {
     return (

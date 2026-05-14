@@ -30,6 +30,10 @@ const FACTORY_ADDRESS =
 
 // Must cover KyeFactory's CHILD_INITIAL_TON (0.15 TON) so the child kye deploys.
 const CREATE_FORWARD_TON = toNano('0.15');
+// One-time vault activation funding when the user creates their first circle:
+// covers the vault deploy + storage reserve + this circle's on-chain deploy,
+// with headroom left in the vault for later gasless actions.
+const CREATE_ACTIVATION_FUNDING_TON = '0.5';
 
 export default function CreateKye() {
   const s = useStrings();
@@ -77,8 +81,19 @@ export default function CreateKye() {
     setSubmitting(true);
     setError(null);
     try {
-      if (!vault.ready || !vault.vaultAddress) {
-        throw new Error('Activate your gasless vault first (from the home screen).');
+      if (!vault.ownerAddress) {
+        throw new Error('Connect a TON wallet first (wallet button, top-right).');
+      }
+      // First-time use: activate the gasless vault. This single wallet
+      // transaction deploys the vault and funds it enough to create this
+      // circle; every action after this is gasless.
+      let vaultAddress = vault.vaultAddress;
+      if (!vault.ready) {
+        await vault.activate(CREATE_ACTIVATION_FUNDING_TON);
+        vaultAddress = vault.vaultAddress;
+      }
+      if (!vaultAddress) {
+        throw new Error('Vault not ready yet — try again in a moment.');
       }
       const roundIntervalSec = intervalWeeks * 7 * 24 * 3600;
       // One salt, used for BOTH the backend address prediction and the on-chain
@@ -101,7 +116,7 @@ export default function CreateKye() {
       // The vault is the on-chain organizer. Sign the CreateKye intent with the
       // session key and relay it — no wallet popup, no gas.
       const body = buildCreateKyeBody({
-        organizer: Address.parse(vault.vaultAddress),
+        organizer: Address.parse(vaultAddress),
         memberCount: BigInt(N),
         contribution: C,
         roundIntervalSec: BigInt(roundIntervalSec),
@@ -111,7 +126,7 @@ export default function CreateKye() {
         salt,
       });
       await signAndRelay({
-        vaultAddress: vault.vaultAddress,
+        vaultAddress,
         target: Address.parse(FACTORY_ADDRESS),
         amount: CREATE_FORWARD_TON,
         body,
@@ -127,7 +142,11 @@ export default function CreateKye() {
       setSubmitting(false);
       setConfirmOpen(false);
     }
-  }, [name, N, C, intervalWeeks, feeBps, alphaBps, policy, vault.ready, vault.vaultAddress, s.common.error]);
+  }, [
+    name, N, C, intervalWeeks, feeBps, alphaBps, policy,
+    vault.ready, vault.vaultAddress, vault.ownerAddress, vault.activate,
+    s.common.error,
+  ]);
 
   const copyInvite = useCallback(async () => {
     if (!invite) return;
@@ -188,8 +207,8 @@ export default function CreateKye() {
       <PageHeader title={s.create.title} subtitle={s.create.subtitle} />
       <section className="p-4 grid gap-4">
         {!vault.ready && (
-          <div className="rounded-xl border border-[var(--color-primary)] bg-[var(--color-primary)]/5 px-3 py-2 text-sm font-medium">
-            {s.vault.notActivated} — {s.vault.activateCta}
+          <div className="rounded-xl border border-[var(--color-primary)] bg-[var(--color-primary)]/5 px-3 py-2 text-xs leading-relaxed">
+            {s.create.firstCircleNotice}
           </div>
         )}
 

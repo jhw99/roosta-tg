@@ -28,6 +28,8 @@ export const ko: Strings = {
   create: {
     title: '계 만들기',
     subtitle: '파라미터를 설정하면 페이아웃이 실시간 반영됩니다.',
+    firstCircleNotice:
+      '첫 계 생성: 지갑 거래 한 번으로 가스리스 볼트를 만들고 이 계를 충전합니다. 이후 참여·납입은 가스가 들지 않습니다.',
     name: '계 이름',
     members: '계원 수 (N)',
     contribution: '라운드당 기여금 (USDT)',
@@ -116,12 +118,22 @@ export const ko: Strings = {
   },
   wallet: {
     title: '지갑',
-    subtitle: 'TON 지갑 연결',
+    subtitle: '가스리스 볼트 — 충전하고 출금하세요',
     connected: '연결됨',
     address: '주소',
     balance: '잔액',
     disconnect: '연결 해제',
     rePair: '재연결',
+    ownerWallet: '내 TON 지갑',
+    connectPrompt: 'TON 지갑을 연결하면 볼트가 표시됩니다.',
+    topUpDone: '충전 요청이 제출됐습니다.',
+    withdrawTitle: '다른 주소로 출금',
+    withdrawToPlaceholder: '받는 주소 (EQ… / UQ…)',
+    withdraw: '출금',
+    withdrawable: '출금 가능',
+    withdrawNothing: '출금할 금액이 없습니다.',
+    withdrawDone: '출금 요청이 제출됐습니다.',
+    sweepToOwner: '내 지갑으로 전액 출금',
   },
   vault: {
     activateTitle: '가스리스 Roosta 활성화',

@@ -26,6 +26,8 @@ export const en = {
   create: {
     title: 'Create a circle',
     subtitle: 'Set parameters. Payout preview updates live.',
+    firstCircleNotice:
+      'First circle: one wallet transaction sets up your gasless vault and funds this circle. Everything after — joining, contributing — costs no gas.',
     name: 'Circle name',
     members: 'Members (N)',
     contribution: 'Contribution per round (USDT)',
@@ -114,12 +116,22 @@ export const en = {
   },
   wallet: {
     title: 'Wallet',
-    subtitle: 'Connect your TON wallet',
+    subtitle: 'Your gasless vault — top up and cash out',
     connected: 'Connected',
     address: 'Address',
     balance: 'Balance',
     disconnect: 'Disconnect',
     rePair: 'Re-pair',
+    ownerWallet: 'Your TON wallet',
+    connectPrompt: 'Connect your TON wallet to see your vault.',
+    topUpDone: 'Top-up submitted.',
+    withdrawTitle: 'Withdraw to another address',
+    withdrawToPlaceholder: 'Destination address (EQ… / UQ…)',
+    withdraw: 'Withdraw',
+    withdrawable: 'Withdrawable',
+    withdrawNothing: 'Nothing to withdraw.',
+    withdrawDone: 'Withdrawal submitted.',
+    sweepToOwner: 'Withdraw all to my wallet',
   },
   vault: {
     activateTitle: 'Activate gasless Roosta',

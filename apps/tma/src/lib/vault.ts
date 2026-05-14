@@ -27,6 +27,13 @@ import { api } from './api';
 /** Gas the relayer attaches; the vault must hold at least this for storage rent. */
 export const VAULT_MIN_GAS = toNano('0.05');
 
+/**
+ * Minimal cost to *activate* (deploy) a vault: contract deploy gas + the
+ * storage-rent reserve. No circle deposit — the user tops up later, only when
+ * they actually join or create a circle.
+ */
+export const VAULT_ACTIVATION_TON = '0.15';
+
 /** StateInit (code + data) for a vault owned by `owner` with session key `pubKey`. */
 export async function vaultStateInit(owner: Address, pubKey: bigint): Promise<StateInit> {
   return RoostaVault.init(owner, pubKey);
@@ -61,18 +68,30 @@ export async function fetchVaultState(vaultAddress: string): Promise<VaultState>
 }
 
 /**
- * Build the one-time TonConnect activation message: deploy + fund the vault in
- * a single transaction signed by the user's real wallet. This is the only gas
- * the user ever pays.
+ * Build the one-time TonConnect activation message: deploy the vault. `fundingTon`
+ * defaults to the bare minimum (deploy gas + storage rent); the Create-circle
+ * flow passes a larger amount so the same single transaction also funds that
+ * circle's on-chain deploy. The user tops up further via {@link buildTopUpMessage}.
  */
 export async function buildActivationMessage(
   owner: Address,
   pubKey: bigint,
-  fundingTon: string,
+  fundingTon: string = VAULT_ACTIVATION_TON,
 ): Promise<{ address: string; amount: string; stateInit: string }> {
   const address = (await predictVaultAddress(owner, pubKey)).toString();
   const stateInit = await vaultStateInitBase64(owner, pubKey);
   return { address, amount: toNano(fundingTon).toString(), stateInit };
+}
+
+/**
+ * Build a TonConnect top-up message: a plain transfer into an already-deployed
+ * vault. The user does this when they're ready to commit funds to a circle.
+ */
+export function buildTopUpMessage(
+  vaultAddress: string,
+  amountTon: string,
+): { address: string; amount: string } {
+  return { address: vaultAddress, amount: toNano(amountTon).toString() };
 }
 
 /**

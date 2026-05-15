@@ -2,30 +2,42 @@
 
 import { use, useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Address, toNano } from '@ton/core';
-import { buildContributeBody } from '@roosta/shared/contractMessages';
+import {
+  buildContributeBody,
+  buildEmergencyCancelBody,
+} from '@roosta/shared/contractMessages';
 import { PageHeader } from '../../../components/PageHeader';
 import { StatusBadge } from '../../../components/StatusBadge';
 import { MemberRow } from '../../../components/MemberRow';
 import { Countdown } from '../../../components/Countdown';
+import { ConfirmationDialog } from '../../../components/ConfirmationDialog';
 import { useStrings } from '../../../hooks/useStrings';
 import { useVault } from '../../../hooks/useVault';
 import { api, type ApiKye, type ApiMember } from '../../../lib/api';
 import { signAndRelay } from '../../../lib/vault';
 import { fmtUSDT, shortAddress, tonscanAddressUrl } from '../../../lib/format';
+import { useAppStore } from '../../../store';
 
 // Gas margin added on top of the contribution amount the vault forwards.
 const CONTRIBUTE_GAS_MARGIN = toNano('0.02');
+// EmergencyCancel: gas-only forward (no value semantics in the message).
+const CANCEL_FORWARD_TON = toNano('0.02');
 
 export default function KyeDetail({ params }: { params: Promise<{ address: string }> }) {
   const { address } = use(params);
+  const router = useRouter();
   const s = useStrings();
   const vault = useVault();
+  const user = useAppStore((st) => st.user);
   const [kye, setKye] = useState<ApiKye | null>(null);
   const [members, setMembers] = useState<ApiMember[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [contributing, setContributing] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -75,6 +87,33 @@ export default function KyeDetail({ params }: { params: Promise<{ address: strin
       setContributing(false);
     }
   }, [kye, vault.ready, vault.vaultAddress, s.common.error]);
+
+  const isOrganizer = !!(user && kye && user.id === kye.organizerId);
+  const canDelete = !!(isOrganizer && kye && kye.status === 'created');
+
+  const deleteCircle = useCallback(async () => {
+    if (!kye) return;
+    if (!vault.ready || !vault.vaultAddress) {
+      setError('Activate your gasless vault first (from the home screen).');
+      return;
+    }
+    setDeleting(true);
+    setError(null);
+    try {
+      await signAndRelay({
+        vaultAddress: vault.vaultAddress,
+        target: Address.parse(kye.contractAddress),
+        amount: CANCEL_FORWARD_TON,
+        body: buildEmergencyCancelBody(0),
+      });
+      setConfirmDelete(false);
+      router.push('/');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : s.common.error);
+    } finally {
+      setDeleting(false);
+    }
+  }, [kye, vault.ready, vault.vaultAddress, router, s.common.error]);
 
   const share = useCallback(() => {
     if (!kye) return;
@@ -147,6 +186,46 @@ export default function KyeDetail({ params }: { params: Promise<{ address: strin
         </section>
       )}
 
+      <section className="px-4 pt-2 pb-2">
+        <h2 className="mb-2 font-semibold text-sm">{s.kye.circleInfo}</h2>
+        <div className="grid grid-cols-2 gap-2">
+          <Stat
+            label={s.home.contribution}
+            value={`${fmtUSDT(BigInt(kye.params.contribution))} USDT`}
+          />
+          <Stat
+            label={s.create.interval}
+            value={
+              kye.params.roundIntervalSec < 7 * 24 * 3600
+                ? s.create.testInterval
+                : s.create.weeks(Math.round(kye.params.roundIntervalSec / (7 * 24 * 3600)))
+            }
+          />
+          <Stat
+            label={s.create.feeRate}
+            value={`${(kye.params.feeRateBps / 100).toFixed(2)}%`}
+          />
+          <Stat
+            label={s.create.defaultPolicy}
+            value={
+              kye.params.defaultPolicy === 'pro_rata'
+                ? s.create.policyProRata
+                : kye.params.defaultPolicy === 'cancel'
+                  ? s.create.policyCancel
+                  : s.create.policyOrganizerCover
+            }
+          />
+          <Stat
+            label={s.home.members}
+            value={`${members.length}/${kye.params.N}`}
+          />
+          <Stat
+            label={s.create.alphaMax}
+            value={`${(kye.params.alphaMaxBps / 100).toFixed(2)}%`}
+          />
+        </div>
+      </section>
+
       {me && kye.status === 'active' && (
         <section className="px-4 pb-2">
           <div className="rounded-xl border border-black/5 bg-[var(--color-secondary-bg)] p-3 text-sm">
@@ -205,7 +284,37 @@ export default function KyeDetail({ params }: { params: Promise<{ address: strin
         >
           {s.kye.tonscan}
         </a>
+        {canDelete && (
+          <button
+            type="button"
+            onClick={() => setConfirmDelete(true)}
+            className="block w-full rounded-xl border border-red-300 p-3 text-sm text-red-700"
+          >
+            {s.kye.deleteCircle}
+          </button>
+        )}
       </section>
+
+      <ConfirmationDialog
+        open={confirmDelete}
+        title={s.kye.deleteCircleTitle}
+        confirmLabel={s.kye.deleteCircle}
+        cancelLabel={s.common.cancel}
+        onCancel={() => setConfirmDelete(false)}
+        onConfirm={() => void deleteCircle()}
+        busy={deleting}
+      >
+        {s.kye.deleteCircleBody}
+      </ConfirmationDialog>
     </main>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl bg-[var(--color-secondary-bg)] p-3">
+      <p className="text-xs opacity-60">{label}</p>
+      <p className="text-sm font-medium tabular-nums">{value}</p>
+    </div>
   );
 }

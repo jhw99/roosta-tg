@@ -92,6 +92,11 @@ export const en = {
     tonscan: 'Open in Tonscan',
     rounds: 'Round history',
     share: 'Share',
+    circleInfo: 'Circle info',
+    deleteCircle: 'Delete circle',
+    deleteCircleTitle: 'Delete this circle?',
+    deleteCircleBody:
+      'You can delete a circle only before all members have joined. This cancels the on-chain contract; anyone who already contributed will be able to claim a refund. This action cannot be undone.',
   },
   rounds: {
     title: 'Round history',

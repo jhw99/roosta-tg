@@ -89,6 +89,11 @@ export const ko: Strings = {
     paid: '납입 완료',
     pending: '대기',
     defaulted: '미납',
+    circleInfo: '계 정보',
+    deleteCircle: '계 삭제',
+    deleteCircleTitle: '이 계를 삭제할까요?',
+    deleteCircleBody:
+      '계는 모든 멤버가 참여하기 전에만 삭제할 수 있습니다. 온체인 컨트랙트를 취소하며, 이미 납입한 사람은 환불을 청구할 수 있게 됩니다. 이 동작은 되돌릴 수 없습니다.',
     contributeNow: '지금 납입',
     contributing: '전송 중...',
     tonscan: 'Tonscan에서 보기',

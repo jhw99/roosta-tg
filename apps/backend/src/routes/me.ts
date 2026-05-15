@@ -8,6 +8,12 @@ import { predictVaultAddress } from '../lib/vault.js';
 
 export const me = new Hono();
 
+const POLICY_FROM_INT: Record<number, 'pro_rata' | 'cancel' | 'organizer_cover'> = {
+  0: 'pro_rata',
+  1: 'cancel',
+  2: 'organizer_cover',
+};
+
 me.get('/', async (c) => {
   const sb = getSupabase();
   if (!sb) return fail(c, 500, 'no_db', 'Database not configured');
@@ -16,23 +22,111 @@ me.get('/', async (c) => {
   const user = await resolveOrCreateUser(sb, tg);
   if (!user) return fail(c, 500, 'user_upsert', 'Could not create user row');
 
-  const { data: memberships } = await sb
-    .from('kye_members')
-    .select('kye_id, order_num, status, kyes(id, name, contract_address, status)')
-    .eq('user_id', user.id);
+  // The user appears in "My Circles" if they (a) hold a member slot OR (b)
+  // organize the circle. Organizers never take a slot — KyeContract forbids
+  // it — so they would otherwise see an empty list right after creation.
+  const KYE_COLS =
+    'id, name, contract_address, organizer_id, params, status, created_at';
+  const [{ data: memberships }, { data: organized }] = await Promise.all([
+    sb
+      .from('kye_members')
+      .select(`kye_id, order_num, status, kyes(${KYE_COLS})`)
+      .eq('user_id', user.id),
+    sb.from('kyes').select(KYE_COLS).eq('organizer_id', user.id),
+  ]);
 
-  const kyes = (memberships ?? []).map((m) => {
+  // Pull next-unexecuted round timestamps in one shot.
+  const allKyeIds = new Set<string>();
+  for (const m of memberships ?? []) {
     const mm = m as unknown as { kyes?: Record<string, unknown> | Record<string, unknown>[] };
     const k = (Array.isArray(mm.kyes) ? mm.kyes[0] : mm.kyes) ?? {};
+    if (k.id) allKyeIds.add(k.id as string);
+  }
+  for (const k of organized ?? []) {
+    if (k.id) allKyeIds.add(k.id as string);
+  }
+  const nextRoundByKye = new Map<string, { roundNum: number; scheduledAt: number | null }>();
+  if (allKyeIds.size > 0) {
+    const { data: rounds } = await sb
+      .from('rounds')
+      .select('kye_id, round_num, scheduled_at, executed_at')
+      .in('kye_id', Array.from(allKyeIds))
+      .is('executed_at', null);
+    for (const r of rounds ?? []) {
+      const id = r.kye_id as string;
+      const existing = nextRoundByKye.get(id);
+      const n = Number(r.round_num);
+      if (!existing || n < existing.roundNum) {
+        nextRoundByKye.set(id, {
+          roundNum: n,
+          scheduledAt: r.scheduled_at
+            ? Math.floor(new Date(r.scheduled_at as string).getTime() / 1000)
+            : null,
+        });
+      }
+    }
+  }
+
+  const toWireKye = (
+    raw: Record<string, unknown>,
+    role: 'organizer' | 'member',
+    extra: { orderNum: number | null; memberStatus: string | null },
+  ) => {
+    const p = (raw.params ?? {}) as Record<string, unknown>;
+    const memberCount = Number(p.memberCount ?? 0);
+    const defaultPolicy =
+      typeof p.defaultPolicy === 'number'
+        ? POLICY_FROM_INT[p.defaultPolicy] ?? 'pro_rata'
+        : ((p.defaultPolicy as string) ?? 'pro_rata');
+    const next = nextRoundByKye.get(raw.id as string) ?? null;
     return {
-      kyeId: k.id,
-      name: k.name,
-      contractAddress: k.contract_address,
-      status: k.status,
-      orderNum: (m as { order_num?: number }).order_num ?? null,
-      memberStatus: (m as { status?: string }).status ?? null,
+      id: raw.id as string,
+      kyeId: raw.id as string,
+      name: (raw.name as string) ?? '',
+      contractAddress: (raw.contract_address as string) ?? '',
+      organizerId: (raw.organizer_id as string) ?? '',
+      status: (raw.status as string) ?? '',
+      memberCount,
+      currentRound: next?.roundNum ?? 1,
+      nextRoundAt: next?.scheduledAt ?? null,
+      createdAt: raw.created_at
+        ? Math.floor(new Date(raw.created_at as string).getTime() / 1000)
+        : 0,
+      params: {
+        N: memberCount,
+        contribution: String(p.contribution ?? '0'),
+        roundIntervalSec: Number(p.roundIntervalSec ?? 0),
+        feeRateBps: Number(p.feeRateBps ?? 0),
+        alphaMaxBps: Number(p.alphaMaxBps ?? 0),
+        defaultPolicy,
+      },
+      orderNum: extra.orderNum,
+      memberStatus: extra.memberStatus,
+      role,
     };
-  });
+  };
+
+  const byKyeId = new Map<string, ReturnType<typeof toWireKye>>();
+  for (const m of memberships ?? []) {
+    const mm = m as unknown as { kyes?: Record<string, unknown> | Record<string, unknown>[] };
+    const k = (Array.isArray(mm.kyes) ? mm.kyes[0] : mm.kyes) ?? {};
+    if (!k.id) continue;
+    byKyeId.set(
+      k.id as string,
+      toWireKye(k, 'member', {
+        orderNum: (m as { order_num?: number }).order_num ?? null,
+        memberStatus: (m as { status?: string }).status ?? null,
+      }),
+    );
+  }
+  for (const k of organized ?? []) {
+    if (byKyeId.has(k.id as string)) continue;
+    byKyeId.set(
+      k.id as string,
+      toWireKye(k, 'organizer', { orderNum: null, memberStatus: null }),
+    );
+  }
+  const kyes = Array.from(byKyeId.values());
 
   return c.json({
     user: {

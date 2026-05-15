@@ -103,7 +103,7 @@ export default function CreateKye() {
         BigInt(Math.floor(Math.random() * 0xffff_ffff));
 
       const res = await api.createKye({
-        name: name.trim() || 'Untitled Kye',
+        name: name.trim() || 'Untitled circle',
         memberCount: N,
         contribution: C.toString(),
         roundIntervalSec,
@@ -168,11 +168,17 @@ export default function CreateKye() {
   if (invite) {
     return (
       <main>
-        <PageHeader title={s.create.title} subtitle={invite.address} />
+        <PageHeader title={s.create.created} subtitle={invite.address} />
         <section className="p-4 space-y-4">
-          <div className="rounded-2xl border border-green-200 bg-green-50 p-4 text-sm text-green-900">
+          <div className="rounded-2xl border border-[var(--color-primary)] bg-[var(--color-primary)]/5 p-4 text-center">
+            <h2 className="text-lg font-bold text-[var(--color-primary)]">
+              {s.create.inviteHeadline}
+            </h2>
+            <p className="mt-2 text-sm leading-relaxed">{s.create.activationNote}</p>
+          </div>
+          <div className="rounded-2xl border border-black/5 bg-[var(--color-secondary-bg)] p-4 text-sm">
             <p className="font-medium">{s.create.inviteLink}</p>
-            <p className="mt-2 break-all text-xs">{invite.link}</p>
+            <p className="mt-2 break-all text-xs opacity-70">{invite.link}</p>
           </div>
           <div className="flex gap-2">
             <button
@@ -195,7 +201,7 @@ export default function CreateKye() {
             onClick={() => router.push(`/kye/${invite.address}`)}
             className="w-full rounded-xl border border-black/10 py-2 text-sm"
           >
-            Open kye
+            {s.create.openCircle}
           </button>
         </section>
       </main>
@@ -217,7 +223,7 @@ export default function CreateKye() {
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="Spring Kye"
+            placeholder="Spring circle"
             className="rounded-lg border border-black/10 bg-transparent px-3 py-2 text-sm"
           />
         </Field>

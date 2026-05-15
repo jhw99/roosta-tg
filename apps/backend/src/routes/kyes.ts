@@ -173,6 +173,34 @@ kyes.post('/', async (c) => {
     ? BigInt(parsed.data.salt)
     : BigInt(Date.now());
   const predicted = await predictAddress(parsed.data, user.vault_address, platformTreasury, saltVal);
+
+  // Pre-insert the kyes row so the detail page resolves immediately, without
+  // waiting for the indexer to catch up to the on-chain KyeCreated event. The
+  // indexer's upsert reconciles this row once the event lands.
+  const paramsJson = {
+    name: parsed.data.name,
+    memberCount: parsed.data.memberCount,
+    contribution: contribution.toString(),
+    roundIntervalSec: parsed.data.roundIntervalSec,
+    feeRateBps: parsed.data.feeRateBps,
+    alphaMaxBps: parsed.data.alphaMaxBps,
+    defaultPolicy: parsed.data.defaultPolicy,
+    salt: saltVal.toString(),
+  };
+  const { error: insertErr } = await sb.from('kyes').upsert(
+    {
+      contract_address: predicted,
+      organizer_id: user.id,
+      name: parsed.data.name,
+      params: paramsJson,
+      status: 'created',
+    },
+    { onConflict: 'contract_address' },
+  );
+  if (insertErr) {
+    return fail(c, 500, 'db_error', insertErr.message);
+  }
+
   return c.json({
     ok: true,
     params: { ...parsed.data, contribution: contribution.toString(), salt: saltVal.toString() },

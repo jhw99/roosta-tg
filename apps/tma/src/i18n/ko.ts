@@ -58,6 +58,11 @@ export const ko: Strings = {
     copy: '복사',
     share: '공유',
     copied: '복사됨!',
+    created: '계 생성 완료',
+    inviteHeadline: '이제 참여자들을 초대하세요!',
+    activationNote:
+      '모든 자리가 채워지면 계가 자동으로 활성화됩니다. 그전까지는 "참여 중" 상태로 머물고, 라운드 실행이나 납입이 발생하지 않습니다. 아래 초대 링크를 멤버들에게 공유해 주세요.',
+    openCircle: '계 열기',
   },
   join: {
     title: '계 참여',

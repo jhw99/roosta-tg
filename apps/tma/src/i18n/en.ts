@@ -56,6 +56,11 @@ export const en = {
     copy: 'Copy',
     share: 'Share',
     copied: 'Copied!',
+    created: 'Circle created',
+    inviteHeadline: 'Now invite your participants!',
+    activationNote:
+      'The circle activates once every seat is filled. Until then it stays in "Joining" state — no rounds run, no contributions are due. Share the invite link below with your members.',
+    openCircle: 'Open circle',
   },
   join: {
     title: 'Join circle',

@@ -39,7 +39,10 @@ export function MainButtonShim({
           // ignore — older Telegram clients may not support setParams
         }
         btn.onClick(handler);
-        if (visible && !disabled) btn.show();
+        // Keep the button VISIBLE even when disabled — hiding it on disable
+        // (e.g. before the user has picked a slot) leaves users with no
+        // affordance for the next action.
+        if (visible) btn.show();
         else btn.hide();
         if (disabled) btn.disable();
         else btn.enable();
@@ -63,7 +66,7 @@ export function MainButtonShim({
 
   if (!visible || hasNativeMainButton) return null;
   return (
-    <div className="sticky bottom-0 left-0 right-0 z-40 border-t border-black/5 bg-[var(--color-bg)] p-3 sm:hidden">
+    <div className="sticky bottom-0 left-0 right-0 z-40 border-t border-black/5 bg-[var(--color-bg)] p-3">
       <button
         type="button"
         onClick={onClick}

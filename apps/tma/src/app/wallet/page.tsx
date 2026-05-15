@@ -25,16 +25,12 @@ function usdcToNano(s: string): bigint {
   return wholeBig + BigInt(fracPadded || '0');
 }
 
-async function fetchOwnerBalance(address: string): Promise<bigint | null> {
-  try {
-    const url = `https://testnet.toncenter.com/api/v2/getAddressBalance?address=${encodeURIComponent(address)}`;
-    const res = await fetch(url);
-    if (!res.ok) return null;
-    const data = (await res.json()) as { ok?: boolean; result?: string };
-    if (data.ok && typeof data.result === 'string') return BigInt(data.result);
-  } catch { /* ignore */ }
-  return null;
-}
+// We deliberately do NOT read the wallet's raw on-chain TON balance: testnet
+// wallets routinely have stray TON from external faucets (Tonkeeper, @testgiver_
+// ton_bot) which would inflate the displayed "USDC" figure. We show only the
+// amount the backend has credited via /me/faucet — see user.testUsdcBalance.
+// On mainnet this same field stays at 0 and the UI should read the real USDC
+// jetton balance instead (TODO once jetton wiring lands).
 
 export default function Wallet() {
   const s = useStrings();
@@ -43,7 +39,6 @@ export default function Wallet() {
   const user = useAppStore((st) => st.user);
   const setUser = useAppStore((st) => st.setUser);
 
-  const [ownerBalance, setOwnerBalance] = useState<bigint | null>(null);
   const [sheet, setSheet] = useState<null | 'deposit' | 'withdraw'>(null);
   const [amount, setAmount] = useState('');
   const [busy, setBusy] = useState<null | 'deposit' | 'withdraw' | 'faucet'>(null);
@@ -51,18 +46,9 @@ export default function Wallet() {
   const [err, setErr] = useState<string | null>(null);
   const [confirmFaucet, setConfirmFaucet] = useState(false);
 
-  // Fetch the connected wallet's TON balance for the Deposit sheet.
-  useEffect(() => {
-    if (!vault.ownerAddress) {
-      setOwnerBalance(null);
-      return;
-    }
-    let cancelled = false;
-    void fetchOwnerBalance(vault.ownerAddress).then((b) => {
-      if (!cancelled) setOwnerBalance(b);
-    });
-    return () => { cancelled = true; };
-  }, [vault.ownerAddress, busy]);
+  const ownerBalance: bigint | null = user?.testUsdcBalance != null
+    ? BigInt(user.testUsdcBalance)
+    : null;
 
   const vaultBalance = vault.state?.balance ?? 0n;
   const withdrawableNano = vaultBalance > VAULT_MIN_GAS ? vaultBalance - VAULT_MIN_GAS : 0n;
@@ -113,24 +99,21 @@ export default function Wallet() {
     setConfirmFaucet(false);
     setBusy('faucet'); setErr(null); setMsg(null);
     try {
-      await api.faucet();
-      if (user) setUser({ ...user, faucetClaimedAt: new Date().toISOString() });
-      setMsg(s.wallet.faucetDone);
-      // Poll owner balance until the drop lands.
-      if (vault.ownerAddress) {
-        for (let i = 0; i < 15; i++) {
-          await new Promise((r) => setTimeout(r, 3000));
-          const b = await fetchOwnerBalance(vault.ownerAddress);
-          if (b != null) setOwnerBalance(b);
-          if (b && b > (ownerBalance ?? 0n)) break;
-        }
+      const res = await api.faucet();
+      if (user) {
+        setUser({
+          ...user,
+          faucetClaimedAt: new Date().toISOString(),
+          testUsdcBalance: res.testUsdcBalance ?? user.testUsdcBalance,
+        });
       }
+      setMsg(s.wallet.faucetDone);
     } catch (e) {
       setErr(e instanceof Error ? e.message : s.common.error);
     } finally {
       setBusy(null);
     }
-  }, [user, setUser, vault.ownerAddress, ownerBalance, s]);
+  }, [user, setUser, s]);
 
   return (
     <main>

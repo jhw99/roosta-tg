@@ -142,6 +142,7 @@ me.get('/', async (c) => {
       vaultAddress: user.vault_address,
       sessionPubkey: user.session_pubkey,
       faucetClaimedAt: user.faucet_claimed_at,
+      testUsdcBalance: user.test_usdc_balance,
     },
     kyes,
   });
@@ -275,7 +276,18 @@ me.post('/faucet', async (c) => {
     await sb.from('users').update({ faucet_claimed_at: null }).eq('id', user.id);
     return fail(c, 502, 'broadcast_failed', 'Faucet broadcast failed; try again');
   }
-  return c.json({ ok: true, amount: FAUCET_AMOUNT.toString() });
+  // Credit the server-tracked test USDC balance so the wallet UI shows only
+  // what we issued (not external testnet TON the user may have grabbed from
+  // Tonkeeper or @testgiver_ton_bot).
+  const newBalance = (BigInt(user.test_usdc_balance) + FAUCET_AMOUNT).toString();
+  const { error: balErr } = await sb
+    .from('users')
+    .update({ test_usdc_balance: newBalance })
+    .eq('id', user.id);
+  if (balErr) {
+    logger.error({ err: balErr.message, user: user.id }, 'test_usdc_balance credit failed');
+  }
+  return c.json({ ok: true, amount: FAUCET_AMOUNT.toString(), testUsdcBalance: newBalance });
 });
 
 const NotificationSettingsBody = z.object({

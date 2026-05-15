@@ -131,6 +131,9 @@ export const userSchema = z.object({
   vaultAddress: z.string().nullable().optional(),
   sessionPubkey: z.string().nullable().optional(),
   faucetClaimedAt: z.string().nullable().optional(),
+  // Server-tracked test USDC balance in nano units (testnet). Displayed as
+  // USDC at 6 dec. Real on-chain TON in the wallet is ignored on purpose.
+  testUsdcBalance: z.string().optional(),
 });
 export type ApiUser = z.infer<typeof userSchema>;
 
@@ -277,7 +280,7 @@ export const api = {
   faucet: async () =>
     apiRequest(
       '/me/faucet',
-      z.object({ ok: z.boolean(), amount: z.string() }),
+      z.object({ ok: z.boolean(), amount: z.string(), testUsdcBalance: z.string().optional() }),
       { method: 'POST' },
     ),
 

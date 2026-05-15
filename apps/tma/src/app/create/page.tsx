@@ -59,7 +59,11 @@ export default function CreateKye() {
   const alphaBps = Math.round(alphaPct * 100);
 
   const warnings = useMemo(
-    () => computeWarnings({ N, feeBps, alphaMaxBps: alphaBps, roundIntervalWeeks: intervalWeeks }, s),
+    () =>
+      computeWarnings(
+        { N, feeBps, alphaMaxBps: alphaBps, roundIntervalWeeks: intervalWeeks || 1 },
+        s,
+      ),
     [N, feeBps, alphaBps, intervalWeeks, s],
   );
 
@@ -95,7 +99,9 @@ export default function CreateKye() {
       if (!vaultAddress) {
         throw new Error('Vault not ready yet — try again in a moment.');
       }
-      const roundIntervalSec = intervalWeeks * 7 * 24 * 3600;
+      // 0 = the 1-minute test preset (testnet-only). Drop this branch + the
+      // selector entry before mainnet — no contract redeploy needed.
+      const roundIntervalSec = intervalWeeks === 0 ? 60 : intervalWeeks * 7 * 24 * 3600;
       // One salt, used for BOTH the backend address prediction and the on-chain
       // CreateKye body, so the predicted address matches what gets deployed.
       const salt =
@@ -250,7 +256,8 @@ export default function CreateKye() {
 
         <Field label={s.create.interval}>
           <div className="flex gap-2">
-            {[1, 2, 3, 4].map((w) => (
+            {/* 0 = 1-minute test preset (testnet-only — remove before mainnet). */}
+            {[0, 1, 2, 3, 4].map((w) => (
               <label
                 key={w}
                 className={`flex-1 cursor-pointer rounded-lg border px-2 py-2 text-center text-xs whitespace-nowrap ${
@@ -267,7 +274,7 @@ export default function CreateKye() {
                   onChange={() => setIntervalWeeks(w)}
                   className="sr-only"
                 />
-                {s.create.weeks(w)}
+                {w === 0 ? s.create.testInterval : s.create.weeks(w)}
               </label>
             ))}
           </div>
@@ -396,7 +403,7 @@ export default function CreateKye() {
         busy={submitting}
       >
         <p>
-          {N} × {fmtUSDT(C)} USDT — {s.create.weeks(intervalWeeks)}
+          {N} × {fmtUSDT(C)} USDT — {intervalWeeks === 0 ? s.create.testInterval : s.create.weeks(intervalWeeks)}
         </p>
       </ConfirmationDialog>
 

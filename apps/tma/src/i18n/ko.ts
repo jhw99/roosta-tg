@@ -54,6 +54,7 @@ export const ko: Strings = {
     perRound: '라운드당',
     create: '생성',
     creating: '생성 중...',
+    testInterval: '1분 (테스트)',
     inviteLink: '초대 링크',
     copy: '복사',
     share: '공유',

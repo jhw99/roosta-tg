@@ -17,8 +17,13 @@ message CreateKye {
 
 message KyeCreatedEvt { kyeAddress: Address; organizer: Address; memberCount: Int as uint8; contribution: Int as coins; salt: Int as uint64 }
 
-// Allowed round intervals: 1, 2, 3, 4 weeks (in seconds).
-const WEEK_SEC: Int = 604800;
+// Round-interval bounds. Lower bound (60 s) lets us test full cycles in
+// minutes on testnet; upper bound (90 days) blocks accidental absurd values.
+// The exact list of *exposed* interval presets lives in the application layer
+// (backend ALLOWED_INTERVALS + TMA selector), so mainnet can drop the 1-min
+// option without a contract redeploy.
+const MIN_ROUND_INTERVAL_SEC: Int = 60;
+const MAX_ROUND_INTERVAL_SEC: Int = 7776000; // 90 days
 // First-round + storage rent reserve forwarded to child contract.
 const CHILD_INITIAL_TON: Int = 150000000; // 0.15 TON
 
@@ -43,10 +48,8 @@ contract KyeFactory with Deployable {
         require(msg.memberCount >= 2 && msg.memberCount <= 30, "N out of range");
         require(msg.contribution > 0, "bad contribution");
         require(
-            msg.roundIntervalSec == WEEK_SEC
-                || msg.roundIntervalSec == 2 * WEEK_SEC
-                || msg.roundIntervalSec == 3 * WEEK_SEC
-                || msg.roundIntervalSec == 4 * WEEK_SEC,
+            msg.roundIntervalSec >= MIN_ROUND_INTERVAL_SEC
+                && msg.roundIntervalSec <= MAX_ROUND_INTERVAL_SEC,
             "bad interval"
         );
         require(msg.defaultPolicy <= 2, "bad policy");

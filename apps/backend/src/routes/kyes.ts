@@ -92,7 +92,10 @@ kyes.get('/:id/rounds', async (c) => {
 
 // ---------------- POST /kyes ----------------
 
-const ALLOWED_INTERVALS = [7 * 86400, 14 * 86400, 21 * 86400, 28 * 86400];
+// Exposed round-interval presets. The contract accepts anything in [60s, 90d];
+// this list is the user-facing menu. Remove the leading `60` (one-minute test
+// option) before mainnet — no contract redeploy needed.
+const ALLOWED_INTERVALS = [60, 7 * 86400, 14 * 86400, 21 * 86400, 28 * 86400];
 
 const CreateKyeBody = z.object({
   name: z.string().min(1).max(64),

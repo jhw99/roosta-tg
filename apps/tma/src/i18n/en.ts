@@ -52,6 +52,7 @@ export const en = {
     perRound: 'per round',
     create: 'Create',
     creating: 'Creating...',
+    testInterval: '1m (test)',
     inviteLink: 'Invite link',
     copy: 'Copy',
     share: 'Share',

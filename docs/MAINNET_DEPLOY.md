@@ -187,6 +187,13 @@ below and have two signers sign off in the indicated column.
 | _example_ | KyeFactory | `EQ...full` | `0x...full` | `EQ...full` | @alice + @bob | `EQ...smoke` | jhenry |
 | 2026-05-13 | KyeFactory (**testnet**) | [`EQC_bLp6_c49lMtgAr03DJum9XijYxl4qTGKZV7FUheKdU2p`](https://testnet.tonscan.org/address/EQC_bLp6_c49lMtgAr03DJum9XijYxl4qTGKZV7FUheKdU2p) | `0xa14c1861a7a72ecefc36d5bbb86290dc33d5649e21ca5fa8493f27a592f026dc` | `EQCuWxkqFp94mWsEgC7qw55CsU86ZajhRfMNau_JZU2Z-1ET` (self, testnet only) | n/a (testnet) | [`EQDv9gjRKQ1fP_TcuZXS6Ni9GmQDwVPAU8q7xYPA_BEJKDdN`](https://testnet.tonscan.org/address/EQDv9gjRKQ1fP_TcuZXS6Ni9GmQDwVPAU8q7xYPA_BEJKDdN) (3 members, 0.1 TON × 1w, F=3%, α=5%, ProRata) | jhenry |
 | 2026-05-14 | KyeFactory (**testnet**, redeploy — dedicated treasury) | [`EQAfBlrsEtNVum6D14Y3NrcGRwuv7D4lM-XRSyvDmJBbZjB5`](https://testnet.tonscan.org/address/EQAfBlrsEtNVum6D14Y3NrcGRwuv7D4lM-XRSyvDmJBbZjB5) | `0x3646c83fc9ccadfd8e7eb6c04ec697fa7340fbabaa19ad909671ac402ae14725` | [`EQDX9Hb-pcjaScicBU5DYVRpp8SkSe-_LrcK7AVQzJr1Y_nZ`](https://testnet.tonscan.org/address/EQDX9Hb-pcjaScicBU5DYVRpp8SkSe-_LrcK7AVQzJr1Y_nZ) (testnet treasury, replaces self-treasury placeholder) | n/a (testnet) | pending | jhenry |
+| 2026-05-15 | KyeFactory (**testnet**, redeploy — flexible interval bounds) | [`EQAZLWZbfzjLgE2xvWSMnP9sGB1MJzn6H6AXnptiw8fqa3kL`](https://testnet.tonscan.org/address/EQAZLWZbfzjLgE2xvWSMnP9sGB1MJzn6H6AXnptiw8fqa3kL) | `0xfd861736e37175135f1d541a01fa3ab8b7b6bf3b30f93499a8d5e5d06e5dd3c0` | `EQDX9Hb-pcjaScicBU5DYVRpp8SkSe-_LrcK7AVQzJr1Y_nZ` (same as previous) | n/a (testnet) | pending | jhenry |
+
+> The 2026-05-15 redeploy replaces the hard-coded `{1,2,3,4} × week` interval
+> allow-list with a `[60 s, 90 days]` bound check. The exposed presets now live
+> in `apps/backend/src/routes/kyes.ts` (`ALLOWED_INTERVALS`) and the TMA create
+> selector. **Before mainnet, drop `60` from `ALLOWED_INTERVALS` and remove the
+> 1-min selector entry — no contract redeploy required.**
 
 After the row is appended:
 

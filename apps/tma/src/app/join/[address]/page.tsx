@@ -11,10 +11,30 @@ import { MainButtonShim } from '../../../components/MainButtonShim';
 import { LoadingOverlay } from '../../../components/LoadingOverlay';
 import { useStrings } from '../../../hooks/useStrings';
 import { useVault } from '../../../hooks/useVault';
-import { api, type ApiKye, type ApiMember } from '../../../lib/api';
+import { api, ApiError, type ApiKye, type ApiMember } from '../../../lib/api';
+import { useAppStore } from '../../../store';
 import { computeWarnings } from '../../../lib/warnings';
 import { signAndRelay } from '../../../lib/vault';
 import { fmtUSDT, shortAddress } from '../../../lib/format';
+
+type OnboardStep = null | 'faucet' | 'activate' | 'join';
+
+// Poll testnet toncenter until the owner wallet has enough TON for the
+// activation transaction. Needed because the faucet broadcast returns
+// immediately but the drop takes ~10-30s to settle on chain.
+async function waitForWalletFunded(address: string, minNano: bigint): Promise<boolean> {
+  for (let i = 0; i < 20; i++) {
+    await new Promise((r) => setTimeout(r, 3000));
+    try {
+      const url = `https://testnet.toncenter.com/api/v2/getAddressBalance?address=${encodeURIComponent(address)}`;
+      const res = await fetch(url);
+      if (!res.ok) continue;
+      const data = (await res.json()) as { ok?: boolean; result?: string };
+      if (data.ok && data.result && BigInt(data.result) >= minNano) return true;
+    } catch { /* keep polling */ }
+  }
+  return false;
+}
 
 // Gas-only forward for the JoinKye message (the contract takes no value here).
 const JOIN_FORWARD_TON = toNano('0.02');
@@ -28,6 +48,8 @@ export default function JoinKye({ params }: { params: Promise<{ address: string 
   const s = useStrings();
   const router = useRouter();
   const vault = useVault();
+  const user = useAppStore((st) => st.user);
+  const setUser = useAppStore((st) => st.setUser);
 
   const [kye, setKye] = useState<ApiKye | null>(null);
   const [members, setMembers] = useState<ApiMember[]>([]);
@@ -36,6 +58,7 @@ export default function JoinKye({ params }: { params: Promise<{ address: string 
   const [selected, setSelected] = useState<number | null>(null);
   const [consent, setConsent] = useState(false);
   const [joining, setJoining] = useState(false);
+  const [onboardStep, setOnboardStep] = useState<OnboardStep>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -79,24 +102,51 @@ export default function JoinKye({ params }: { params: Promise<{ address: string 
   const submit = useCallback(async () => {
     if (!kye || selected == null) return;
     if (!vault.ownerAddress) {
-      setError('Connect a TON wallet first (wallet button, top-right).');
+      setError(s.join.needsWallet);
       return;
     }
     setJoining(true);
     setError(null);
     try {
-      // First-time use: activate the gasless vault. One wallet transaction
-      // deploys it and funds the join; everything after is gasless.
+      // Onboarding step 1 — test USDC faucet (testnet only). Without TON in
+      // the owner wallet, the vault activation tx below would bounce. On
+      // mainnet the backend returns 403 and we skip; on testnet we wait until
+      // the drop actually lands on chain before continuing.
+      if (!user?.faucetClaimedAt) {
+        setOnboardStep('faucet');
+        try {
+          const res = await api.faucet();
+          if (user) {
+            setUser({
+              ...user,
+              faucetClaimedAt: new Date().toISOString(),
+              testUsdcBalance: res.testUsdcBalance ?? user.testUsdcBalance,
+            });
+          }
+          await waitForWalletFunded(vault.ownerAddress, toNano(JOIN_ACTIVATION_FUNDING_TON));
+        } catch (e) {
+          // 403 = mainnet faucet disabled, that's fine. 409 = already claimed
+          // (e.g. user previously claimed from another device) — also fine,
+          // chain balance check below will catch a truly empty wallet.
+          if (!(e instanceof ApiError && (e.status === 403 || e.status === 409))) throw e;
+        }
+      }
+
+      // Onboarding step 2 — one-time gasless vault activation. Funds the
+      // vault + deploys it via a single wallet-signed transaction.
       let vaultAddress = vault.vaultAddress;
       if (!vault.ready) {
+        setOnboardStep('activate');
         await vault.activate(JOIN_ACTIVATION_FUNDING_TON);
         vaultAddress = vault.vaultAddress;
       }
       if (!vaultAddress) throw new Error('Vault not ready yet — try again in a moment.');
 
+      // Onboarding step 3 — actual join. The vault is the on-chain member;
+      // sign the JoinKye intent with the session key and relay it (no wallet
+      // popup, no gas).
+      setOnboardStep('join');
       await api.joinKye(address, { orderNum: selected });
-      // The vault is the on-chain member. Sign the JoinKye intent with the
-      // session key and relay it — no wallet popup, no gas.
       await signAndRelay({
         vaultAddress,
         target: Address.parse(kye.contractAddress),
@@ -108,11 +158,19 @@ export default function JoinKye({ params }: { params: Promise<{ address: string 
       setError(e instanceof Error ? e.message : s.common.error);
     } finally {
       setJoining(false);
+      setOnboardStep(null);
     }
   }, [
-    kye, selected, address, router, s.common.error,
+    kye, selected, address, router, s.common.error, s.join.needsWallet,
     vault.ready, vault.vaultAddress, vault.ownerAddress, vault.activate,
+    user, setUser,
   ]);
+
+  const joiningMessage =
+    onboardStep === 'faucet' ? s.join.onboardClaimingFaucet :
+    onboardStep === 'activate' ? s.join.onboardActivatingVault :
+    onboardStep === 'join' ? s.join.onboardSubmitting :
+    s.join.joining;
 
   if (loading) {
     return (
@@ -221,7 +279,7 @@ export default function JoinKye({ params }: { params: Promise<{ address: string 
       />
       <LoadingOverlay
         open={joining}
-        message={s.join.joining}
+        message={joiningMessage}
         hint={s.common.loadingHint}
       />
     </main>

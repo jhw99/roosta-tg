@@ -80,6 +80,10 @@ export const ko: Strings = {
     consent: '위험을 이해했으며 참여합니다',
     join: '계 참여',
     joining: '참여 중...',
+    needsWallet: '먼저 우측 상단 지갑 버튼으로 TON 지갑을 연결해주세요.',
+    onboardClaimingFaucet: '테스트 USDC 받는 중...',
+    onboardActivatingVault: 'Vault 활성화 중 (1회 한정, 지갑 승인 필요)...',
+    onboardSubmitting: '계 참여 신청 중...',
   },
   kye: {
     progress: '라운드',

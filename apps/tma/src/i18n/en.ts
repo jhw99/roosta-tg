@@ -78,6 +78,10 @@ export const en = {
     consent: 'I understand the risks and want to join',
     join: 'Join circle',
     joining: 'Joining...',
+    needsWallet: 'Connect a TON wallet first (wallet button, top-right).',
+    onboardClaimingFaucet: 'Claiming test USDC...',
+    onboardActivatingVault: 'Activating your gasless vault (one-time, wallet approval)...',
+    onboardSubmitting: 'Submitting join request...',
   },
   kye: {
     progress: 'Round',

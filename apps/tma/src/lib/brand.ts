@@ -9,7 +9,7 @@ export const ROOSTA_BRAND = {
   name: 'Roosta',
   tagline: 'Telegram-native social savings',
   description:
-    'Roosta turns ROSCAs (Korean kye, Mexican tanda, West African sou-sou) into a Telegram-native social savings protocol — pool USDT on TON, automate rotating payouts, and build portable financial reputation.',
+    'Roosta turns ROSCAs (Korean kye, Mexican tanda, West African sou-sou) into a Telegram-native social savings protocol — pool USDC on TON, automate rotating payouts, and build portable financial reputation.',
   url: 'https://roosta-tg.vercel.app',
 } as const;
 

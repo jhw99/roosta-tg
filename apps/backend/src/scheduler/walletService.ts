@@ -1,4 +1,4 @@
-import { Address, Cell, internal, SendMode, toNano } from '@ton/core';
+import { Address, beginCell, Cell, internal, SendMode, toNano } from '@ton/core';
 import { TonClient, WalletContractV4 } from '@ton/ton';
 import { mnemonicToWalletKey } from '@ton/crypto';
 import { buildExecuteRoundBody as buildExecuteRoundBodyShared } from '@roosta/shared/contractMessages';
@@ -85,4 +85,12 @@ export async function sendInternalMessage(
 /** Build the body for the ExecuteRound opcode. Delegates to the shared encoder. */
 export function buildExecuteRoundBody(nonce: bigint | number = 0n): Cell {
   return buildExecuteRoundBodyShared(nonce);
+}
+
+/** Plain TON transfer from the backend wallet (no body). Used by the testnet faucet. */
+export async function sendPlainTon(
+  toAddress: string,
+  value: bigint,
+): Promise<{ seqno: number }> {
+  return sendInternalMessage(toAddress, beginCell().endCell(), value);
 }

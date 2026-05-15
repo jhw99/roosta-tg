@@ -110,6 +110,7 @@ export const userSchema = z.object({
   createdAt: z.number().optional(),
   vaultAddress: z.string().nullable().optional(),
   sessionPubkey: z.string().nullable().optional(),
+  faucetClaimedAt: z.string().nullable().optional(),
 });
 export type ApiUser = z.infer<typeof userSchema>;
 
@@ -251,6 +252,14 @@ export const api = {
       method: 'PATCH',
       body,
     }),
+
+  // Testnet-only: claim 1000 USDC (= 1 TON) drop to the connected wallet.
+  faucet: async () =>
+    apiRequest(
+      '/me/faucet',
+      z.object({ ok: z.boolean(), amount: z.string() }),
+      { method: 'POST' },
+    ),
 
   // --- Gasless vault ---
   saveVault: async (sessionPubkey: string, vaultAddress: string) => {

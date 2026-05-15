@@ -1,15 +1,19 @@
-export const USDT_DECIMALS = 6n;
-export const USDT_SCALE = 10n ** USDT_DECIMALS;
+export const USDC_DECIMALS = 6n;
+export const USDC_SCALE = 10n ** USDC_DECIMALS;
+// Back-compat aliases — older code paths still import USDT_*.
+export const USDT_DECIMALS = USDC_DECIMALS;
+export const USDT_SCALE = USDC_SCALE;
 
-export function fmtUSDT(v: bigint, fractionDigits = 2): string {
+export function fmtUSDC(v: bigint, fractionDigits = 2): string {
   const neg = v < 0n;
   const abs = neg ? -v : v;
-  const whole = abs / USDT_SCALE;
-  const frac = abs % USDT_SCALE;
+  const whole = abs / USDC_SCALE;
+  const frac = abs % USDC_SCALE;
   const fracStr = frac.toString().padStart(6, '0').slice(0, fractionDigits);
   const wholeStr = whole.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
   return `${neg ? '-' : ''}${wholeStr}${fractionDigits > 0 ? '.' + fracStr : ''}`;
 }
+export const fmtUSDT = fmtUSDC;
 
 export function shortAddress(addr: string | null | undefined, head = 4, tail = 4): string {
   if (!addr) return '';

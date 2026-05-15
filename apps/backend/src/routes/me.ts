@@ -1,10 +1,12 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { Address } from '@ton/core';
+import { Address, toNano } from '@ton/core';
 import { getSupabase } from '../lib/supabase.js';
 import { extractTelegramUser, resolveOrCreateUser } from '../lib/currentUser.js';
 import { fail } from '../lib/errors.js';
+import { logger } from '../lib/logger.js';
 import { predictVaultAddress } from '../lib/vault.js';
+import { sendPlainTon } from '../scheduler/walletService.js';
 
 export const me = new Hono();
 
@@ -139,6 +141,7 @@ me.get('/', async (c) => {
       language: user.language,
       vaultAddress: user.vault_address,
       sessionPubkey: user.session_pubkey,
+      faucetClaimedAt: user.faucet_claimed_at,
     },
     kyes,
   });
@@ -230,6 +233,49 @@ me.patch('/wallet', async (c) => {
   if (error) return fail(c, 500, 'db_error', error.message);
 
   return c.json({ ok: true, walletAddress: parsed.data.walletAddress });
+});
+
+// Testnet faucet — once per user, sends a 1 TON ("1000 USDC" at the 6-dec
+// display scale) drop to the user's connected wallet so they can test the
+// deposit/withdraw flow without manually grabbing testnet TON. Mainnet builds
+// simply never call this; remove the env flag to disable.
+const FAUCET_AMOUNT = toNano('1');
+
+me.post('/faucet', async (c) => {
+  if (process.env.TON_NETWORK !== 'testnet') {
+    return fail(c, 403, 'faucet_disabled', 'Faucet is only available on testnet');
+  }
+  const sb = getSupabase();
+  if (!sb) return fail(c, 500, 'no_db', 'Database not configured');
+  const tg = extractTelegramUser(c);
+  if (!tg) return fail(c, 401, 'no_user', 'No Telegram user in initData');
+
+  const user = await resolveOrCreateUser(sb, tg);
+  if (!user) return fail(c, 500, 'user_upsert', 'Could not create user row');
+  if (!user.wallet_address) {
+    return fail(c, 409, 'no_wallet', 'Connect a TON wallet before claiming the faucet');
+  }
+  if (user.faucet_claimed_at) {
+    return fail(c, 409, 'already_claimed', 'Testnet faucet already claimed');
+  }
+
+  // Mark first so two parallel requests can't double-claim.
+  const { error: markErr } = await sb
+    .from('users')
+    .update({ faucet_claimed_at: new Date().toISOString() })
+    .eq('id', user.id)
+    .is('faucet_claimed_at', null);
+  if (markErr) return fail(c, 500, 'db_error', markErr.message);
+
+  try {
+    await sendPlainTon(user.wallet_address, FAUCET_AMOUNT);
+  } catch (e) {
+    logger.error({ err: (e as Error).message, user: user.id }, 'faucet broadcast failed');
+    // Roll back the claim so the user can retry.
+    await sb.from('users').update({ faucet_claimed_at: null }).eq('id', user.id);
+    return fail(c, 502, 'broadcast_failed', 'Faucet broadcast failed; try again');
+  }
+  return c.json({ ok: true, amount: FAUCET_AMOUNT.toString() });
 });
 
 const NotificationSettingsBody = z.object({

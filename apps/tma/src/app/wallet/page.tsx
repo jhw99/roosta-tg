@@ -1,178 +1,207 @@
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Address, beginCell, toNano } from '@ton/core';
 import { TonConnectButton, useTonConnectUI } from '@tonconnect/ui-react';
 import { PageHeader } from '../../components/PageHeader';
 import { LoadingOverlay } from '../../components/LoadingOverlay';
+import { ConfirmationDialog } from '../../components/ConfirmationDialog';
 import { useStrings } from '../../hooks/useStrings';
 import { useVault } from '../../hooks/useVault';
 import { signAndRelay, VAULT_MIN_GAS } from '../../lib/vault';
+import { api } from '../../lib/api';
+import { useAppStore } from '../../store';
+import { fmtUSDC, shortAddress } from '../../lib/format';
 
-function fmtTon(nano: bigint): string {
-  const whole = nano / 1_000_000_000n;
-  const frac = (nano % 1_000_000_000n).toString().padStart(9, '0').slice(0, 3);
-  return `${whole}.${frac}`;
+// 6-dec scale: 1 TON nano = 0.001 USDC display; the contract treats native TON
+// nano-units as the contribution amount, so we present them as USDC at 6 dec.
+const SCALE = 1_000_000n;
+
+function nanoToUsdc(nano: bigint, digits = 2): string { return fmtUSDC(nano, digits); }
+function usdcToNano(s: string): bigint {
+  const [whole, frac = ''] = s.replace(/[, ]/g, '').split('.');
+  const wholeBig = BigInt(whole || '0') * SCALE;
+  const fracPadded = (frac + '000000').slice(0, 6);
+  return wholeBig + BigInt(fracPadded || '0');
+}
+
+async function fetchOwnerBalance(address: string): Promise<bigint | null> {
+  try {
+    const url = `https://testnet.toncenter.com/api/v2/getAddressBalance?address=${encodeURIComponent(address)}`;
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const data = (await res.json()) as { ok?: boolean; result?: string };
+    if (data.ok && typeof data.result === 'string') return BigInt(data.result);
+  } catch { /* ignore */ }
+  return null;
 }
 
 export default function Wallet() {
   const s = useStrings();
   const [tonConnectUI] = useTonConnectUI();
   const vault = useVault();
+  const user = useAppStore((st) => st.user);
+  const setUser = useAppStore((st) => st.setUser);
 
-  const [topUpAmount, setTopUpAmount] = useState('1');
-  const [withdrawTo, setWithdrawTo] = useState('');
-  const [withdrawAmount, setWithdrawAmount] = useState('');
-  const [busy, setBusy] = useState<null | 'topup' | 'withdraw' | 'sweep'>(null);
+  const [ownerBalance, setOwnerBalance] = useState<bigint | null>(null);
+  const [sheet, setSheet] = useState<null | 'deposit' | 'withdraw'>(null);
+  const [amount, setAmount] = useState('');
+  const [busy, setBusy] = useState<null | 'deposit' | 'withdraw' | 'faucet'>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [confirmFaucet, setConfirmFaucet] = useState(false);
 
-  const balance = vault.state?.balance ?? 0n;
-  const withdrawable = balance > VAULT_MIN_GAS ? balance - VAULT_MIN_GAS : 0n;
+  // Fetch the connected wallet's TON balance for the Deposit sheet.
+  useEffect(() => {
+    if (!vault.ownerAddress) {
+      setOwnerBalance(null);
+      return;
+    }
+    let cancelled = false;
+    void fetchOwnerBalance(vault.ownerAddress).then((b) => {
+      if (!cancelled) setOwnerBalance(b);
+    });
+    return () => { cancelled = true; };
+  }, [vault.ownerAddress, busy]);
 
-  const onTopUp = useCallback(async () => {
-    setBusy('topup');
-    setErr(null);
-    setMsg(null);
+  const vaultBalance = vault.state?.balance ?? 0n;
+  const withdrawableNano = vaultBalance > VAULT_MIN_GAS ? vaultBalance - VAULT_MIN_GAS : 0n;
+  const faucetClaimed = !!user?.faucetClaimedAt;
+
+  const closeSheet = () => { setSheet(null); setAmount(''); setErr(null); setMsg(null); };
+
+  const onDeposit = useCallback(async () => {
+    setBusy('deposit'); setErr(null); setMsg(null);
     try {
-      await vault.topUp(topUpAmount);
-      setMsg(s.wallet.topUpDone);
+      await vault.topUp(amount);
+      setMsg(s.wallet.depositDone);
+      closeSheet();
+      await vault.refresh();
     } catch (e) {
       setErr(e instanceof Error ? e.message : s.common.error);
     } finally {
       setBusy(null);
     }
-  }, [vault, topUpAmount, s]);
+  }, [vault, amount, s]);
 
-  // Gasless withdrawal: a signed intent forwarding funds from the vault to any
-  // address. For "sweep", `dest` is the connected owner wallet ("cash out").
-  const doWithdraw = useCallback(
-    async (dest: string, amountNano: bigint, kind: 'withdraw' | 'sweep') => {
-      if (!vault.vaultAddress) {
-        setErr(s.vault.notActivated);
-        return;
+  const onWithdraw = useCallback(async () => {
+    if (!vault.vaultAddress || !vault.ownerAddress) {
+      setErr(s.vault.notActivated); return;
+    }
+    const nano = usdcToNano(amount);
+    if (nano <= 0n) { setErr(s.wallet.withdrawNothing); return; }
+    if (nano > withdrawableNano) { setErr(s.wallet.amountExceeds); return; }
+    setBusy('withdraw'); setErr(null); setMsg(null);
+    try {
+      await signAndRelay({
+        vaultAddress: vault.vaultAddress,
+        target: Address.parse(vault.ownerAddress),
+        amount: nano,
+        body: beginCell().endCell(),
+      });
+      setMsg(s.wallet.withdrawDone);
+      closeSheet();
+      await vault.refresh();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : s.common.error);
+    } finally {
+      setBusy(null);
+    }
+  }, [vault, amount, withdrawableNano, s]);
+
+  const onClaimFaucet = useCallback(async () => {
+    setConfirmFaucet(false);
+    setBusy('faucet'); setErr(null); setMsg(null);
+    try {
+      await api.faucet();
+      if (user) setUser({ ...user, faucetClaimedAt: new Date().toISOString() });
+      setMsg(s.wallet.faucetDone);
+      // Poll owner balance until the drop lands.
+      if (vault.ownerAddress) {
+        for (let i = 0; i < 15; i++) {
+          await new Promise((r) => setTimeout(r, 3000));
+          const b = await fetchOwnerBalance(vault.ownerAddress);
+          if (b != null) setOwnerBalance(b);
+          if (b && b > (ownerBalance ?? 0n)) break;
+        }
       }
-      if (amountNano <= 0n) {
-        setErr(s.wallet.withdrawNothing);
-        return;
-      }
-      setBusy(kind);
-      setErr(null);
-      setMsg(null);
-      try {
-        await signAndRelay({
-          vaultAddress: vault.vaultAddress,
-          target: Address.parse(dest),
-          amount: amountNano,
-          body: beginCell().endCell(), // plain transfer, no body
-        });
-        setMsg(s.wallet.withdrawDone);
-        await vault.refresh();
-      } catch (e) {
-        setErr(e instanceof Error ? e.message : s.common.error);
-      } finally {
-        setBusy(null);
-      }
-    },
-    [vault, s],
-  );
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : s.common.error);
+    } finally {
+      setBusy(null);
+    }
+  }, [user, setUser, vault.ownerAddress, ownerBalance, s]);
 
   return (
     <main>
       <PageHeader title={s.wallet.title} subtitle={s.wallet.subtitle} />
       <section className="p-4 space-y-4">
-        {/* Owner wallet (TonConnect) */}
+        {/* Owner wallet */}
         <div>
           <p className="mb-2 text-xs opacity-60">{s.wallet.ownerWallet}</p>
           <TonConnectButton />
+          {vault.ownerAddress && (
+            <p className="mt-2 text-xs opacity-60">
+              {s.wallet.balance}:{' '}
+              <span className="font-medium tabular-nums">
+                {ownerBalance == null ? '—' : `${nanoToUsdc(ownerBalance)} USDC`}
+              </span>
+            </p>
+          )}
         </div>
 
-        {/* Vault — the gasless proxy wallet */}
         {!vault.ownerAddress ? (
           <p className="text-sm opacity-70">{s.wallet.connectPrompt}</p>
-        ) : !vault.ready ? (
-          <div className="rounded-2xl border border-black/5 bg-[var(--color-secondary-bg)] p-4 text-sm">
-            <p className="font-medium">{s.vault.notActivated}</p>
-            <p className="mt-1 text-xs opacity-70">{s.vault.activateHint}</p>
-          </div>
         ) : (
-          <div className="rounded-2xl border border-black/5 bg-[var(--color-secondary-bg)] p-4 space-y-4 text-sm">
-            <div>
+          <>
+            {/* Vault summary */}
+            <div className="rounded-2xl border border-black/5 bg-[var(--color-secondary-bg)] p-4">
               <p className="text-xs opacity-60">{s.vault.vaultBalance}</p>
-              <p className="text-2xl font-bold tabular-nums">{fmtTon(balance)} TON</p>
-              <p className="break-all text-xs opacity-50">{vault.vaultAddress}</p>
-            </div>
-
-            {/* Top up */}
-            <div className="border-t border-black/5 pt-3">
-              <p className="mb-2 text-xs opacity-60">{s.vault.topUp}</p>
-              <div className="flex gap-2">
-                <input
-                  type="number"
-                  min="0.1"
-                  step="0.1"
-                  value={topUpAmount}
-                  onChange={(e) => setTopUpAmount(e.target.value)}
-                  className="w-24 rounded-lg border border-black/10 bg-transparent px-2 py-2 text-sm"
-                />
-                <span className="self-center text-sm opacity-60">TON</span>
-                <button
-                  type="button"
-                  onClick={onTopUp}
-                  disabled={busy !== null}
-                  className="ml-auto rounded-xl bg-[var(--color-primary)] px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
-                >
-                  {busy === 'topup' ? s.vault.relaying : s.vault.topUp}
-                </button>
-              </div>
-            </div>
-
-            {/* Withdraw to any address */}
-            <div className="border-t border-black/5 pt-3 space-y-2">
-              <p className="text-xs opacity-60">{s.wallet.withdrawTitle}</p>
-              <input
-                type="text"
-                placeholder={s.wallet.withdrawToPlaceholder}
-                value={withdrawTo}
-                onChange={(e) => setWithdrawTo(e.target.value)}
-                className="w-full rounded-lg border border-black/10 bg-transparent px-2 py-2 text-xs"
-              />
-              <div className="flex gap-2">
-                <input
-                  type="number"
-                  min="0"
-                  step="0.1"
-                  placeholder="0.0"
-                  value={withdrawAmount}
-                  onChange={(e) => setWithdrawAmount(e.target.value)}
-                  className="w-24 rounded-lg border border-black/10 bg-transparent px-2 py-2 text-sm"
-                />
-                <span className="self-center text-sm opacity-60">TON</span>
-                <button
-                  type="button"
-                  onClick={() =>
-                    doWithdraw(withdrawTo.trim(), toNano(withdrawAmount || '0'), 'withdraw')
-                  }
-                  disabled={busy !== null || !withdrawTo.trim() || !withdrawAmount}
-                  className="ml-auto rounded-xl border border-[var(--color-primary)] px-4 py-2 text-sm font-medium text-[var(--color-primary)] disabled:opacity-40"
-                >
-                  {busy === 'withdraw' ? s.vault.relaying : s.wallet.withdraw}
-                </button>
-              </div>
-              <p className="text-xs opacity-50">
-                {s.wallet.withdrawable}: {fmtTon(withdrawable)} TON
+              <p className="text-2xl font-bold tabular-nums">
+                {vault.ready ? nanoToUsdc(vaultBalance) : '0.00'} USDC
               </p>
+              {vault.vaultAddress && (
+                <p className="mt-1 text-xs opacity-50">
+                  {shortAddress(vault.vaultAddress, 6, 6)}
+                </p>
+              )}
+              {!vault.ready && (
+                <p className="mt-2 text-xs opacity-70">{s.vault.activateHint}</p>
+              )}
             </div>
 
-            {/* Sweep everything back to the connected wallet */}
-            <button
-              type="button"
-              onClick={() => doWithdraw(vault.ownerAddress, withdrawable, 'sweep')}
-              disabled={busy !== null || withdrawable <= 0n}
-              className="w-full rounded-xl border border-black/10 py-2 text-sm disabled:opacity-40"
-            >
-              {busy === 'sweep' ? s.vault.relaying : s.wallet.sweepToOwner}
-            </button>
+            {/* Deposit / Withdraw */}
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => { setSheet('deposit'); setAmount(''); setErr(null); }}
+                className="rounded-2xl bg-[var(--color-primary)] py-4 font-semibold text-white"
+              >
+                {s.wallet.deposit}
+              </button>
+              <button
+                type="button"
+                onClick={() => { setSheet('withdraw'); setAmount(''); setErr(null); }}
+                disabled={!vault.ready || withdrawableNano <= 0n}
+                className="rounded-2xl border-2 border-[var(--color-primary)] py-4 font-semibold text-[var(--color-primary)] disabled:opacity-40"
+              >
+                {s.wallet.withdraw}
+              </button>
+            </div>
+
+            {/* Testnet faucet */}
+            <div className="rounded-2xl border border-dashed border-black/15 p-4 text-sm">
+              <p className="font-medium">{s.wallet.faucetTitle}</p>
+              <p className="mt-1 text-xs opacity-60">{s.wallet.faucetBody}</p>
+              <button
+                type="button"
+                onClick={() => setConfirmFaucet(true)}
+                disabled={faucetClaimed || busy === 'faucet'}
+                className="mt-3 w-full rounded-xl bg-amber-500 py-2 text-sm font-medium text-white disabled:opacity-40"
+              >
+                {faucetClaimed ? s.wallet.faucetClaimed : s.wallet.faucetClaim}
+              </button>
+            </div>
 
             <button
               type="button"
@@ -181,21 +210,107 @@ export default function Wallet() {
             >
               {s.wallet.disconnect}
             </button>
-          </div>
+          </>
         )}
 
         {msg && <p className="text-xs text-green-700">{msg}</p>}
         {err && <p className="text-xs text-red-600">{err}</p>}
       </section>
+
+      {/* Deposit sheet */}
+      {sheet === 'deposit' && (
+        <div role="dialog" aria-modal="true"
+          className="fixed inset-0 z-40 flex items-end justify-center bg-black/40 sm:items-center">
+          <div className="w-full max-w-sm rounded-t-2xl bg-[var(--color-bg)] p-4 shadow-xl sm:rounded-2xl">
+            <h2 className="text-lg font-semibold">{s.wallet.deposit}</h2>
+            <p className="mt-1 text-xs opacity-60">
+              {s.wallet.availableInWallet}:{' '}
+              <span className="font-medium">{ownerBalance == null ? '—' : nanoToUsdc(ownerBalance)} USDC</span>
+            </p>
+            <div className="mt-3 flex items-center gap-2">
+              <input
+                type="number" min="0" step="any" value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                placeholder="0.00"
+                className="flex-1 rounded-lg border border-black/10 bg-transparent px-3 py-2 text-sm"
+              />
+              <span className="text-sm opacity-60">USDC</span>
+              <button type="button"
+                onClick={() => { if (ownerBalance) setAmount(nanoToUsdc(ownerBalance - toNano('0.05'), 6)); }}
+                className="rounded-lg border border-black/10 px-2 py-1 text-xs">
+                {s.wallet.max}
+              </button>
+            </div>
+            {err && <p className="mt-2 text-xs text-red-600">{err}</p>}
+            <div className="mt-4 flex gap-2">
+              <button type="button" onClick={closeSheet} disabled={busy !== null}
+                className="flex-1 rounded-xl border border-black/10 py-2 text-sm">
+                {s.common.cancel}
+              </button>
+              <button type="button" onClick={() => void onDeposit()}
+                disabled={!amount || busy !== null}
+                className="flex-1 rounded-xl bg-[var(--color-primary)] py-2 text-sm font-medium text-white disabled:opacity-60">
+                {busy === 'deposit' ? s.vault.relaying : s.wallet.deposit}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Withdraw sheet */}
+      {sheet === 'withdraw' && (
+        <div role="dialog" aria-modal="true"
+          className="fixed inset-0 z-40 flex items-end justify-center bg-black/40 sm:items-center">
+          <div className="w-full max-w-sm rounded-t-2xl bg-[var(--color-bg)] p-4 shadow-xl sm:rounded-2xl">
+            <h2 className="text-lg font-semibold">{s.wallet.withdraw}</h2>
+            <p className="mt-1 text-xs opacity-60">
+              {s.wallet.toMyWallet} · {s.wallet.withdrawable}:{' '}
+              <span className="font-medium">{nanoToUsdc(withdrawableNano)} USDC</span>
+            </p>
+            <div className="mt-3 flex items-center gap-2">
+              <input
+                type="number" min="0" step="any" value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                placeholder="0.00"
+                className="flex-1 rounded-lg border border-black/10 bg-transparent px-3 py-2 text-sm"
+              />
+              <span className="text-sm opacity-60">USDC</span>
+              <button type="button"
+                onClick={() => setAmount(nanoToUsdc(withdrawableNano, 6))}
+                className="rounded-lg border border-black/10 px-2 py-1 text-xs">
+                {s.wallet.max}
+              </button>
+            </div>
+            {err && <p className="mt-2 text-xs text-red-600">{err}</p>}
+            <div className="mt-4 flex gap-2">
+              <button type="button" onClick={closeSheet} disabled={busy !== null}
+                className="flex-1 rounded-xl border border-black/10 py-2 text-sm">
+                {s.common.cancel}
+              </button>
+              <button type="button" onClick={() => void onWithdraw()}
+                disabled={!amount || busy !== null}
+                className="flex-1 rounded-xl bg-[var(--color-primary)] py-2 text-sm font-medium text-white disabled:opacity-60">
+                {busy === 'withdraw' ? s.vault.relaying : s.wallet.withdraw}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <ConfirmationDialog
+        open={confirmFaucet}
+        title={s.wallet.faucetTitle}
+        confirmLabel={s.wallet.faucetClaim}
+        cancelLabel={s.common.cancel}
+        onCancel={() => setConfirmFaucet(false)}
+        onConfirm={() => void onClaimFaucet()}
+      >
+        {s.wallet.faucetBody}
+      </ConfirmationDialog>
+
       <LoadingOverlay
         open={busy !== null}
-        message={
-          busy === 'topup'
-            ? s.vault.topUp
-            : busy === 'sweep'
-              ? s.wallet.sweepToOwner
-              : s.wallet.withdraw
-        }
+        message={busy === 'deposit' ? s.wallet.deposit : busy === 'withdraw' ? s.wallet.withdraw : s.wallet.faucetClaim}
         hint={s.common.loadingHint}
       />
     </main>

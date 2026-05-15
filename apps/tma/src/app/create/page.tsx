@@ -381,10 +381,10 @@ export default function CreateKye() {
         <div className="rounded-xl bg-[var(--color-secondary-bg)] p-3 text-sm">
           <p className="opacity-70">{s.create.expectedRevenue}</p>
           <p className="text-lg font-semibold tabular-nums">
-            {fmtUSDT(totalOrganizerRevenue)} USDT
+            {fmtUSDT(totalOrganizerRevenue)} USDC
           </p>
           <p className="text-xs opacity-60">
-            {fmtUSDT(sample.organizer_fee)} USDT × {N} ({s.create.perRound})
+            {fmtUSDT(sample.organizer_fee)} USDC × {N} ({s.create.perRound})
           </p>
         </div>
         {error && (
@@ -409,7 +409,7 @@ export default function CreateKye() {
         busy={submitting}
       >
         <p>
-          {N} × {fmtUSDT(C)} USDT — {intervalWeeks === 0 ? s.create.testInterval : s.create.weeks(intervalWeeks)}
+          {N} × {fmtUSDT(C)} USDC — {intervalWeeks === 0 ? s.create.testInterval : s.create.weeks(intervalWeeks)}
         </p>
       </ConfirmationDialog>
 

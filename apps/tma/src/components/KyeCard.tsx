@@ -38,7 +38,7 @@ export function KyeCard({
           {kye.memberCount}/{kye.params.N}
         </dd>
         <dt>{strings.home.contribution}</dt>
-        <dd className="text-right tabular-nums">{fmtUSDT(contributionBig)} USDT</dd>
+        <dd className="text-right tabular-nums">{fmtUSDT(contributionBig)} USDC</dd>
         {kye.nextRoundAt ? (
           <>
             <dt>{strings.home.nextRoundIn}</dt>

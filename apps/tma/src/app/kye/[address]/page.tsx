@@ -204,7 +204,7 @@ export default function KyeDetail({ params }: { params: Promise<{ address: strin
         <div className="grid grid-cols-2 gap-2">
           <Stat
             label={s.home.contribution}
-            value={`${fmtUSDT(BigInt(kye.params.contribution))} USDT`}
+            value={`${fmtUSDT(BigInt(kye.params.contribution))} USDC`}
           />
           <Stat
             label={s.create.interval}
@@ -264,7 +264,7 @@ export default function KyeDetail({ params }: { params: Promise<{ address: strin
                 className="mt-2 w-full rounded-xl bg-[var(--color-primary)] py-2 text-sm font-medium text-white disabled:opacity-60"
               >
                 {contributing ? s.kye.contributing : s.kye.contributeNow} ·{' '}
-                {fmtUSDT(BigInt(kye.params.contribution))} USDT
+                {fmtUSDT(BigInt(kye.params.contribution))} USDC
               </button>
             )}
           </div>

@@ -148,7 +148,7 @@ export default function JoinKye({ params }: { params: Promise<{ address: string 
         <Info label={s.join.contractAddress}>{shortAddress(kye.contractAddress)}</Info>
         <div className="grid grid-cols-2 gap-2 text-sm">
           <Stat label={s.home.members} value={`${kye.memberCount}/${kye.params.N}`} />
-          <Stat label={s.home.contribution} value={`${fmtUSDT(contributionBig)} USDT`} />
+          <Stat label={s.home.contribution} value={`${fmtUSDT(contributionBig)} USDC`} />
           <Stat
             label={s.create.interval}
             value={s.create.weeks(Math.round(kye.params.roundIntervalSec / (7 * 24 * 3600)))}

@@ -47,7 +47,7 @@ export const DEMO_KYE_PRIMARY: ApiKye = {
   name: 'Hangang Writers Weekly Savings',
   params: {
     N: 5,
-    contribution: '100000000', // 100 USDT (6-decimals)
+    contribution: '100000000', // 100 USDC (6-decimals)
     roundIntervalSec: WEEK,
     feeRateBps: 300,
     alphaMaxBps: 1000,

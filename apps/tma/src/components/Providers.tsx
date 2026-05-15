@@ -58,6 +58,34 @@ export function Providers({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  // Bot deep-link routing. The invite share URL is
+  //   https://t.me/RoostaApp_Bot/app?startapp=join_<contractAddress>
+  // which lands the user on the mini app's home (/) with the start param
+  // surfaced as `tgWebAppStartParam` (Telegram) or `?startapp=` (web). We
+  // route on it so the recipient lands directly on the join page instead of
+  // wondering where the Join button is.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (pathname !== '/') return; // only handle on the home landing
+    void (async () => {
+      const sp = new URLSearchParams(window.location.search);
+      let startParam =
+        sp.get('tgWebAppStartParam') || sp.get('startapp') || sp.get('start_param') || '';
+      // Telegram exposes the start_param on initDataUnsafe when launched via
+      // bot deep-link inside the Telegram client.
+      if (!startParam) {
+        const wa = await getWebApp();
+        const fromTg = (wa?.initDataUnsafe as { start_param?: string } | undefined)?.start_param;
+        if (fromTg) startParam = fromTg;
+      }
+      if (startParam.startsWith('join_')) {
+        const addr = startParam.slice('join_'.length);
+        if (addr) router.replace(`/join/${addr}`);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     let mounted = true;
     let off: (() => void) | undefined;

@@ -66,7 +66,7 @@ export function MainButtonShim({
 
   if (!visible || hasNativeMainButton) return null;
   return (
-    <div className="sticky bottom-0 left-0 right-0 z-40 border-t border-black/5 bg-[var(--color-bg)] p-3">
+    <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-black/5 bg-[var(--color-bg)] p-3">
       <button
         type="button"
         onClick={onClick}

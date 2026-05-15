@@ -11,6 +11,12 @@ export const kyes = new Hono();
 
 // ---------------- GET /kyes/:id ----------------
 
+const POLICY_FROM_INT: Record<number, 'pro_rata' | 'cancel' | 'organizer_cover'> = {
+  0: 'pro_rata',
+  1: 'cancel',
+  2: 'organizer_cover',
+};
+
 kyes.get('/:id', async (c) => {
   const sb = getSupabase();
   if (!sb) return fail(c, 500, 'no_db', 'Database not configured');
@@ -32,10 +38,12 @@ kyes.get('/:id', async (c) => {
   const organizerHandle: string | null = null;
   const organizerWalletAddress = (organizer?.wallet_address as string | undefined) ?? null;
 
-  const [{ data: members }, { data: currentRound }] = await Promise.all([
+  const [{ data: rawMembers }, { data: currentRoundRow }] = await Promise.all([
     sb
       .from('kye_members')
-      .select('user_id, order_num, status, joined_at')
+      .select(
+        'id, user_id, order_num, status, joined_at, user:users!kye_members_user_id_fkey(wallet_address)',
+      )
       .eq('kye_id', kye.id)
       .order('order_num', { ascending: true }),
     sb
@@ -48,21 +56,61 @@ kyes.get('/:id', async (c) => {
       .maybeSingle(),
   ]);
 
+  // Normalize the JSONB params blob to the wire shape the TMA expects.
+  const p = (kye.params ?? {}) as Record<string, unknown>;
+  const memberCount = Number(p.memberCount ?? 0);
+  const defaultPolicy =
+    typeof p.defaultPolicy === 'number'
+      ? (POLICY_FROM_INT[p.defaultPolicy] ?? 'pro_rata')
+      : (p.defaultPolicy as string) ?? 'pro_rata';
+
+  const members = (rawMembers ?? []).map((m) => {
+    const userRel = (m as { user?: Record<string, unknown> | Record<string, unknown>[] }).user;
+    const u = Array.isArray(userRel) ? userRel[0] : userRel;
+    return {
+      id: m.id as string,
+      userId: m.user_id as string,
+      walletAddress: ((u?.wallet_address as string) ?? '') || '',
+      orderNum: Number(m.order_num),
+      status: m.status as 'active' | 'defaulted' | 'paid_out',
+    };
+  });
+
+  const createdAtSec = kye.created_at
+    ? Math.floor(new Date(kye.created_at as string).getTime() / 1000)
+    : 0;
+  const nextRoundAt = currentRoundRow?.scheduled_at
+    ? Math.floor(new Date(currentRoundRow.scheduled_at as string).getTime() / 1000)
+    : null;
+  const currentRoundNum = currentRoundRow?.round_num
+    ? Number(currentRoundRow.round_num)
+    : 1;
+
   return c.json({
     kye: {
       id: kye.id,
       name: kye.name,
       contractAddress: kye.contract_address,
       organizerId: kye.organizer_id,
-      organizerTelegramId: organizerTelegramId,
+      organizerTelegramId,
       organizerHandle,
+      organizerWallet: organizerWalletAddress,
       organizerWalletAddress,
-      params: kye.params,
+      params: {
+        N: memberCount,
+        contribution: String(p.contribution ?? '0'),
+        roundIntervalSec: Number(p.roundIntervalSec ?? 0),
+        feeRateBps: Number(p.feeRateBps ?? 0),
+        alphaMaxBps: Number(p.alphaMaxBps ?? 0),
+        defaultPolicy,
+      },
       status: kye.status,
-      createdAt: kye.created_at,
+      memberCount,
+      currentRound: currentRoundNum,
+      nextRoundAt,
+      createdAt: createdAtSec,
     },
-    members: members ?? [],
-    currentRound: currentRound ?? null,
+    members,
   });
 });
 

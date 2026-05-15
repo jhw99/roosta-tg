@@ -40,4 +40,9 @@ html, body {
   background: var(--color-bg);
   color: var(--color-text);
   font-family: var(--font-body);
+  /* Telegram WebView is narrow; never produce a horizontal scrollbar. Any long
+     string (TON addresses, BoC blobs) should wrap, not push the viewport. */
+  overflow-x: hidden;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }

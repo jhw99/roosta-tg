@@ -90,16 +90,24 @@ export default function KyeDetail({ params }: { params: Promise<{ address: strin
 
   const isOrganizer = !!(user && kye && user.id === kye.organizerId);
   const canDelete = !!(isOrganizer && kye && kye.status === 'created');
+  const organizerAlreadyJoined = !!(
+    user && members.some((m) => m.userId === user.id)
+  );
+  const canOrganizerJoin = !!(
+    isOrganizer && kye && kye.status === 'created' && !organizerAlreadyJoined
+  );
 
   const deleteCircle = useCallback(async () => {
     if (!kye) return;
-    if (!vault.ready || !vault.vaultAddress) {
-      setError('Activate your gasless vault first (from the home screen).');
+    if (!vault.vaultAddress) {
+      setError(s.vault.notActivated);
       return;
     }
     setDeleting(true);
     setError(null);
     try {
+      // signAndRelay verifies the vault is deployed + funded; we don't gate
+      // on vault.ready (a stale local state) so the click never silently noops.
       await signAndRelay({
         vaultAddress: vault.vaultAddress,
         target: Address.parse(kye.contractAddress),
@@ -107,13 +115,25 @@ export default function KyeDetail({ params }: { params: Promise<{ address: strin
         body: buildEmergencyCancelBody(0),
       });
       setConfirmDelete(false);
+      // Poll the backend until the indexer flips status to 'cancelled', then
+      // navigate home. Falls through after ~30s so the user is never stuck.
+      for (let i = 0; i < 12; i++) {
+        await new Promise((r) => setTimeout(r, 2500));
+        try {
+          const refreshed = await api.kye(address);
+          if (refreshed.kye.status === 'cancelled') break;
+        } catch {
+          // 404 once the row is gone is fine too.
+          break;
+        }
+      }
       router.push('/');
     } catch (e) {
       setError(e instanceof Error ? e.message : s.common.error);
     } finally {
       setDeleting(false);
     }
-  }, [kye, vault.ready, vault.vaultAddress, router, s.common.error]);
+  }, [kye, vault.vaultAddress, address, router, s.common.error, s.vault.notActivated]);
 
   const share = useCallback(() => {
     if (!kye) return;
@@ -284,6 +304,14 @@ export default function KyeDetail({ params }: { params: Promise<{ address: strin
         >
           {s.kye.tonscan}
         </a>
+        {canOrganizerJoin && (
+          <Link
+            href={`/join/${kye.contractAddress}`}
+            className="block rounded-xl border border-[var(--color-primary)] bg-[var(--color-primary)]/5 p-3 text-sm text-center font-medium text-[var(--color-primary)]"
+          >
+            {s.kye.organizerJoin}
+          </Link>
+        )}
         {canDelete && (
           <button
             type="button"

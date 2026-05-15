@@ -165,7 +165,9 @@ contract KyeContract with Deployable {
         require(msg.orderNum >= 1 && msg.orderNum <= self.memberCount, "bad order");
         require(self.members.get(msg.orderNum) == null, "slot taken");
         let s: Address = sender();
-        require(s != self.organizer, "organizer cannot join");
+        // The organizer is allowed to also take a member slot (opt-in). They
+        // still receive the organizer fee on every round; this just lets them
+        // participate in the rotating payout too.
         // ensure not already joined under another slot
         let i: Int = 1;
         while (i <= self.memberCount) {

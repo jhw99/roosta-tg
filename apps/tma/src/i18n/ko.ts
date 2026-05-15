@@ -90,6 +90,7 @@ export const ko: Strings = {
     pending: '대기',
     defaulted: '미납',
     circleInfo: '계 정보',
+    organizerJoin: '계원으로 참여하기',
     deleteCircle: '계 삭제',
     deleteCircleTitle: '이 계를 삭제할까요?',
     deleteCircleBody:

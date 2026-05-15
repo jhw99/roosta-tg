@@ -93,6 +93,7 @@ export const en = {
     rounds: 'Round history',
     share: 'Share',
     circleInfo: 'Circle info',
+    organizerJoin: 'Join as a participant',
     deleteCircle: 'Delete circle',
     deleteCircleTitle: 'Delete this circle?',
     deleteCircleBody:

@@ -292,9 +292,8 @@ kyes.post('/:id/join', async (c) => {
   if (kye.status !== 'created') {
     return fail(c, 409, 'not_open', 'Kye is not accepting new members');
   }
-  if (kye.organizer_id === user.id) {
-    return fail(c, 403, 'is_organizer', 'Organizer cannot join their own Kye');
-  }
+  // Organizers may also opt in to a member slot. The contract permits it,
+  // and they still collect the organizer fee on every round.
   const memberCount = Number(
     (kye.params as Record<string, unknown> | null)?.memberCount ?? 0,
   );

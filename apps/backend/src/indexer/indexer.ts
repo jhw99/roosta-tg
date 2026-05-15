@@ -336,14 +336,26 @@ export class EventIndexer {
     }
   }
 
-  private async userIdByWallet(wallet: string | undefined): Promise<string | null> {
-    if (!wallet || !this.supabase) return null;
-    const { data } = await this.supabase
+  /**
+   * Resolve a user by their on-chain identity address. With the gasless proxy
+   * vault model, every event's "member" / "organizer" field is the vault
+   * address, not the user's EOA wallet — so we check `vault_address` first and
+   * fall back to `wallet_address` for legacy (pre-vault) records.
+   */
+  private async userIdByWallet(address: string | undefined): Promise<string | null> {
+    if (!address || !this.supabase) return null;
+    const { data: byVault } = await this.supabase
       .from('users')
       .select('id')
-      .eq('wallet_address', wallet)
+      .eq('vault_address', address)
       .maybeSingle();
-    return (data?.id as string) ?? null;
+    if (byVault?.id) return byVault.id as string;
+    const { data: byWallet } = await this.supabase
+      .from('users')
+      .select('id')
+      .eq('wallet_address', address)
+      .maybeSingle();
+    return (byWallet?.id as string) ?? null;
   }
 
   private async enqueueNotifications(

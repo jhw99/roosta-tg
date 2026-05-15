@@ -101,6 +101,7 @@ export const en = {
       'You can delete a circle only before all members have joined. This cancels the on-chain contract; anyone who already contributed will be able to claim a refund. This action cannot be undone.',
     deleteSubmittedNotice:
       'Submitted. Your circle will be removed in about 1–2 minutes after the chain confirms.',
+    deleting: 'Deleting circle…',
   },
   rounds: {
     title: 'Round history',
@@ -180,6 +181,7 @@ export const en = {
     back: 'Back',
     retry: 'Retry',
     loading: 'Loading...',
+    loadingHint: 'Signing your intent and broadcasting on-chain. Usually a few seconds.',
     error: 'Something went wrong',
   },
 };

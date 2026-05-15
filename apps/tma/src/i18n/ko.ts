@@ -98,6 +98,7 @@ export const ko: Strings = {
       '계는 모든 멤버가 참여하기 전에만 삭제할 수 있습니다. 온체인 컨트랙트를 취소하며, 이미 납입한 사람은 환불을 청구할 수 있게 됩니다. 이 동작은 되돌릴 수 없습니다.',
     deleteSubmittedNotice:
       '삭제 요청이 제출됐습니다. 체인 확정까지 약 1~2분 뒤에 목록에서 사라집니다.',
+    deleting: '계 삭제 중…',
     contributeNow: '지금 납입',
     contributing: '전송 중...',
     tonscan: 'Tonscan에서 보기',
@@ -182,6 +183,7 @@ export const ko: Strings = {
     back: '뒤로',
     retry: '재시도',
     loading: '불러오는 중...',
+    loadingHint: 'intent 서명 후 체인에 브로드캐스트하는 중입니다. 보통 몇 초면 끝납니다.',
     error: '오류가 발생했습니다',
   },
 };

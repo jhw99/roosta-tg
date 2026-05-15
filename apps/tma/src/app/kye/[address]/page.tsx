@@ -13,6 +13,7 @@ import { StatusBadge } from '../../../components/StatusBadge';
 import { MemberRow } from '../../../components/MemberRow';
 import { Countdown } from '../../../components/Countdown';
 import { ConfirmationDialog } from '../../../components/ConfirmationDialog';
+import { LoadingOverlay } from '../../../components/LoadingOverlay';
 import { useStrings } from '../../../hooks/useStrings';
 import { useVault } from '../../../hooks/useVault';
 import { api, type ApiKye, type ApiMember } from '../../../lib/api';
@@ -315,8 +316,13 @@ export default function KyeDetail({ params }: { params: Promise<{ address: strin
         )}
       </section>
 
+      <LoadingOverlay
+        open={contributing || deleting}
+        message={contributing ? s.kye.contributing : s.kye.deleting}
+        hint={s.common.loadingHint}
+      />
       <ConfirmationDialog
-        open={confirmDelete}
+        open={confirmDelete && !deleting}
         title={s.kye.deleteCircleTitle}
         confirmLabel={s.kye.deleteCircle}
         cancelLabel={s.common.cancel}

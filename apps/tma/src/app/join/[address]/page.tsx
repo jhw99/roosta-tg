@@ -8,6 +8,7 @@ import { PageHeader } from '../../../components/PageHeader';
 import { PayoutTable } from '../../../components/PayoutTable';
 import { WarningCallout } from '../../../components/WarningCallout';
 import { MainButtonShim } from '../../../components/MainButtonShim';
+import { LoadingOverlay } from '../../../components/LoadingOverlay';
 import { useStrings } from '../../../hooks/useStrings';
 import { useVault } from '../../../hooks/useVault';
 import { api, type ApiKye, type ApiMember } from '../../../lib/api';
@@ -217,6 +218,11 @@ export default function JoinKye({ params }: { params: Promise<{ address: string 
         text={joining ? s.join.joining : s.join.join}
         onClick={() => void submit()}
         disabled={!canJoin || joining}
+      />
+      <LoadingOverlay
+        open={joining}
+        message={s.join.joining}
+        hint={s.common.loadingHint}
       />
     </main>
   );

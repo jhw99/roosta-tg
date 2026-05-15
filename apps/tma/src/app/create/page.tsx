@@ -17,6 +17,7 @@ import { PayoutTable } from '../../components/PayoutTable';
 import { WarningCallout } from '../../components/WarningCallout';
 import { MainButtonShim } from '../../components/MainButtonShim';
 import { ConfirmationDialog } from '../../components/ConfirmationDialog';
+import { LoadingOverlay } from '../../components/LoadingOverlay';
 import { useStrings } from '../../hooks/useStrings';
 import { useVault } from '../../hooks/useVault';
 import { computeWarnings } from '../../lib/warnings';
@@ -393,10 +394,15 @@ export default function CreateKye() {
         )}
       </section>
 
+      <LoadingOverlay
+        open={submitting}
+        message={s.create.creating}
+        hint={s.common.loadingHint}
+      />
       <ConfirmationDialog
-        open={confirmOpen}
+        open={confirmOpen && !submitting}
         title={s.create.create}
-        confirmLabel={submitting ? s.create.creating : s.create.create}
+        confirmLabel={s.create.create}
         cancelLabel={s.common.cancel}
         onConfirm={() => void submit()}
         onCancel={() => setConfirmOpen(false)}

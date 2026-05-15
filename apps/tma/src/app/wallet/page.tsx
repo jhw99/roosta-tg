@@ -4,6 +4,7 @@ import { useCallback, useState } from 'react';
 import { Address, beginCell, toNano } from '@ton/core';
 import { TonConnectButton, useTonConnectUI } from '@tonconnect/ui-react';
 import { PageHeader } from '../../components/PageHeader';
+import { LoadingOverlay } from '../../components/LoadingOverlay';
 import { useStrings } from '../../hooks/useStrings';
 import { useVault } from '../../hooks/useVault';
 import { signAndRelay, VAULT_MIN_GAS } from '../../lib/vault';
@@ -186,6 +187,17 @@ export default function Wallet() {
         {msg && <p className="text-xs text-green-700">{msg}</p>}
         {err && <p className="text-xs text-red-600">{err}</p>}
       </section>
+      <LoadingOverlay
+        open={busy !== null}
+        message={
+          busy === 'topup'
+            ? s.vault.topUp
+            : busy === 'sweep'
+              ? s.wallet.sweepToOwner
+              : s.wallet.withdraw
+        }
+        hint={s.common.loadingHint}
+      />
     </main>
   );
 }

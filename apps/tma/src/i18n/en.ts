@@ -14,6 +14,7 @@ export const en = {
     mainButton: 'Create new circle',
     pullToRefresh: 'Pull to refresh',
     refreshing: 'Refreshing...',
+    deleting: 'Deleting…',
     nextRoundIn: 'Next round in',
     members: 'Members',
     contribution: 'Contribution',
@@ -98,6 +99,8 @@ export const en = {
     deleteCircleTitle: 'Delete this circle?',
     deleteCircleBody:
       'You can delete a circle only before all members have joined. This cancels the on-chain contract; anyone who already contributed will be able to claim a refund. This action cannot be undone.',
+    deleteSubmittedNotice:
+      'Submitted. Your circle will be removed in about 1–2 minutes after the chain confirms.',
   },
   rounds: {
     title: 'Round history',

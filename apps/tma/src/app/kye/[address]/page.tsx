@@ -18,6 +18,7 @@ import { useVault } from '../../../hooks/useVault';
 import { api, type ApiKye, type ApiMember } from '../../../lib/api';
 import { signAndRelay } from '../../../lib/vault';
 import { fmtUSDT, shortAddress, tonscanAddressUrl } from '../../../lib/format';
+import { markDeleting } from '../../../lib/deletingCircles';
 import { useAppStore } from '../../../store';
 
 // Gas margin added on top of the contribution amount the vault forwards.
@@ -114,26 +115,17 @@ export default function KyeDetail({ params }: { params: Promise<{ address: strin
         amount: CANCEL_FORWARD_TON,
         body: buildEmergencyCancelBody(0),
       });
+      // Mark locally so the home list shows the row as "deleting" until the
+      // indexer flips the on-chain status to 'cancelled' (~30 s – 2 min).
+      markDeleting(kye.contractAddress);
       setConfirmDelete(false);
-      // Poll the backend until the indexer flips status to 'cancelled', then
-      // navigate home. Falls through after ~30s so the user is never stuck.
-      for (let i = 0; i < 12; i++) {
-        await new Promise((r) => setTimeout(r, 2500));
-        try {
-          const refreshed = await api.kye(address);
-          if (refreshed.kye.status === 'cancelled') break;
-        } catch {
-          // 404 once the row is gone is fine too.
-          break;
-        }
-      }
+      alert(s.kye.deleteSubmittedNotice);
       router.push('/');
     } catch (e) {
       setError(e instanceof Error ? e.message : s.common.error);
-    } finally {
       setDeleting(false);
     }
-  }, [kye, vault.vaultAddress, address, router, s.common.error, s.vault.notActivated]);
+  }, [kye, vault.vaultAddress, router, s.common.error, s.vault.notActivated, s.kye.deleteSubmittedNotice]);
 
   const share = useCallback(() => {
     if (!kye) return;

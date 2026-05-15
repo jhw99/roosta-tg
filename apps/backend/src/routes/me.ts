@@ -126,7 +126,10 @@ me.get('/', async (c) => {
       toWireKye(k, 'organizer', { orderNum: null, memberStatus: null }),
     );
   }
-  const kyes = Array.from(byKyeId.values());
+  // Hide cancelled circles from "My Circles" — they're effectively deleted.
+  // (Members who contributed before cancellation can still claim refunds by
+  // visiting the kye contract directly; that lives outside this list view.)
+  const kyes = Array.from(byKyeId.values()).filter((k) => k.status !== 'cancelled');
 
   return c.json({
     user: {

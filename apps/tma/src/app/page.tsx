@@ -8,6 +8,7 @@ import { MainButtonShim } from '../components/MainButtonShim';
 import { api, type ApiKye } from '../lib/api';
 import { useStrings } from '../hooks/useStrings';
 import { useAppStore } from '../store';
+import { clearDeleting, getDeletingSet } from '../lib/deletingCircles';
 
 export default function Home() {
   const s = useStrings();
@@ -20,6 +21,7 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [pullStartY, setPullStartY] = useState<number | null>(null);
   const [pullDelta, setPullDelta] = useState(0);
+  const [deletingSet, setDeletingSet] = useState<Set<string>>(new Set());
 
   const load = useCallback(
     async (mode: 'initial' | 'refresh' = 'initial') => {
@@ -43,6 +45,19 @@ export default function Home() {
   useEffect(() => {
     void load('initial');
   }, [load]);
+
+  // Refresh the local "deleting" registry whenever the kye list changes — any
+  // address whose backend status is already 'cancelled' can be cleared.
+  useEffect(() => {
+    const local = getDeletingSet();
+    for (const k of kyes) {
+      if (k.status === 'cancelled' && local.has(k.contractAddress)) {
+        clearDeleting(k.contractAddress);
+        local.delete(k.contractAddress);
+      }
+    }
+    setDeletingSet(local);
+  }, [kyes]);
 
   const onTouchStart = (e: React.TouchEvent) => {
     if (window.scrollY === 0) setPullStartY(e.touches[0].clientY);
@@ -93,7 +108,12 @@ export default function Home() {
           </div>
         )}
         {kyes.map((k) => (
-          <KyeCard key={k.id} kye={k} strings={s} />
+          <KyeCard
+            key={k.id}
+            kye={k}
+            strings={s}
+            deleting={deletingSet.has(k.contractAddress)}
+          />
         ))}
       </section>
       <MainButtonShim text={s.home.mainButton} onClick={goCreate} />

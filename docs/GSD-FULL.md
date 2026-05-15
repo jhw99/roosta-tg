@@ -102,19 +102,26 @@ the organizer who is expected to `TopUp`).
 | Layer | Tech |
 |---|---|
 | TMA Frontend | Next.js 15, Tailwind v4, Zustand, TON Connect SDK |
-| Smart Contract | Tact (TON) |
+| Smart Contract | Tact (TON) — `KyeFactory`, `KyeContract`, `RoostaVault` (per-user proxy) |
 | Bot | grammY (Telegram Bot API), Node.js |
-| Backend | Node.js, Hono, Supabase |
+| Backend | Node.js, Hono, Supabase, gasless **relayer** (`POST /relay`) |
 | Database | Supabase (Postgres) — cache / UX layer (chain = source of truth) |
 | Infra | Vercel (TMA), Railway (Bot + Backend), TON mainnet |
 
 ### 3.2 Data flow
 
+Every user has a per-user `RoostaVault` (gasless proxy). Members fund it once;
+afterwards every action is a session-key-signed intent the backend relayer
+broadcasts. See [`docs/GASLESS_ARCHITECTURE.md`](GASLESS_ARCHITECTURE.md).
+
 ```
-[Create]   organizer → TMA → contract deploy → DB metadata → bot invite link
-[Join]     member → link → bot /start → TMA → auto-withdraw approval → join tx
-[Round]    cron → executeRound → auto-withdraw + payout → event → bot notification
-[Default]  withdraw fails → DefaultDetected → bot notification → policy applied
+[Activate] owner wallet  → TonConnect tx → deploys & funds RoostaVault (one-time)
+[Create]   organizer TMA → sign intent → /relay → factory deploys child kye → DB row
+[Join]     member TMA    → sign intent → /relay → kye.JoinKye → MemberJoined event
+[Round]    cron          → executeRound → contributions + payout → event → bot DM
+[Default]  no contribute → DefaultDetected → policy applied (ProRata/Cancel/Cover)
+[Delete]   organizer (status=Created) → sign EmergencyCancel intent → /relay
+[Withdraw] member        → sign intent → /relay → vault forwards to any address
 ```
 
 ### 3.3 Responsibility lines (R&R)
@@ -132,8 +139,15 @@ the organizer who is expected to `TopUp`).
 ```
 KyeFactory.tact   — Creates and manages circle instances
 KyeContract.tact  — A single circle instance
+RoostaVault.tact  — Per-user gasless proxy (deposit + signed-intent execute + owner-withdraw)
 PlatformTreasury  — Wallet receiving the 0.5% fee (multisig recommended)
 ```
+
+The vault is the user's on-chain identity inside every kye: `organizer` and
+each `members[i]` is a vault address, not the user's EOA wallet. The kye
+contract itself is unchanged by this — it works with whatever sender
+address shows up. See [`docs/VAULT_SECURITY_REVIEW.md`](VAULT_SECURITY_REVIEW.md)
+for the threat model and audit findings (V-01 … V-17).
 
 ### 4.2 State
 
@@ -155,18 +169,54 @@ platformTreasury: Address
 
 ### 4.3 Functions
 
-- `createKye` — KyeFactory deploys a KyeContract. Validates: feeRateBps ≥ 200, N within range, interval valid.
-- `joinKye` — Reserves a slot and grants auto-withdraw permission. When the slots fill, the circle activates.
-- `executeRound` — Callable by anyone. Pulls contributions → distributes fees → computes adjustment → sends payout → increments `currentRound`.
-- `emergencyCancel` — Organizer only.
+- `createKye` — KyeFactory deploys a KyeContract. Validates: `feeRateBps ≥ 200`,
+  `N` within range, interval within `[60 s, 90 days]`. (The 60 s lower bound
+  enables a 1-minute test preset on testnet; mainnet UI hides it but the
+  contract bound stays.)
+- `joinKye` — Reserves a slot and grants auto-withdraw permission. When all
+  slots fill, the circle activates. **The organizer may opt into a slot of
+  their own** — they are not auto-included, but the contract no longer
+  rejects them. They still collect the organizer fee on every round.
+- `executeRound` — Callable by anyone. Pulls contributions → distributes fees
+  → computes adjustment → sends payout → increments `currentRound`.
+- `emergencyCancel` — Organizer only. Allowed while the kye is `Created` (not
+  yet activated) or `Active`. Pre-activation usage is exposed in the TMA as
+  **"Delete circle"**.
 
 ### 4.4 Events
 
-KyeCreated, MemberJoined, KyeActivated, RoundExecuted, DefaultDetected, PayoutSent, FeeDistributed, KyeCompleted, KyeCancelled.
+`KyeCreated`, `MemberJoined`, `KyeActivated`, `RoundExecuted`, `DefaultDetected`,
+`PayoutSent`, `FeeDistributed`, `KyeCompleted`, `KyeCancelled`, plus vault-side
+`VaultDeployed`, `VaultFunded`, `VaultExecuted`, `VaultWithdrawn`.
 
 ### 4.5 Gas
 
-executeRound costs 0.05 – 0.1 TON per round (at 30 members). Backend pays.
+- `executeRound` costs 0.05 – 0.1 TON per round (at 30 members). **Backend
+  scheduler pays.**
+- `createKye` / `joinKye` / `contribute` / `emergencyCancel`: forwarded by the
+  user's RoostaVault. The relayer (backend wallet) attaches gas to the
+  `VaultExecute` message; the vault uses `SEND_MODE_PAY_GAS_SEPARATELY` to
+  forward only the action's nominal amount, so the user's deposited funds
+  cover only the real action cost — **users never pay TON gas after the
+  one-time vault activation**.
+
+### 4.6 RoostaVault
+
+```
+init(owner: Address, ownerPubKey: Int)
+receive()                          // accept plain TON (deposits, payouts, refunds)
+receive(VaultExecute)              // relayer-delivered, session-key-signed intent
+receive(OwnerWithdraw)             // owner-wallet escape hatch (sweeps everything)
+get currentSeqno()                 // replay guard
+get pubKey()                       // session pubkey
+get balance()                      // self balance (nanoTON)
+```
+
+`VaultExecute` includes `{seqno, validUntil, target, amount, mode, body,
+signature}`. The signed cell additionally binds the vault's `myAddress()` so
+an intent cannot be replayed against another vault. Replay protection is by
+monotonic `seqno`; `validUntil` bounds the relay window. Tests:
+`packages/contracts/tests/RoostaVault.spec.ts` (11 cases).
 
 ---
 
@@ -174,22 +224,73 @@ executeRound costs 0.05 – 0.1 TON per round (at 30 members). Backend pays.
 
 ### 5.1 Screens
 
-Home / Create Kye / Join Kye / Kye Detail / Round History / Wallet / Settings.
+Home / Create Circle / Join Circle / Circle Detail / Round History / Wallet / Settings.
 
-### 5.2 Create Kye details
+- **Home** — "My Circles" list (member + organizer roles, cancelled hidden).
+  When the organizer hasn't yet joined any slot the circle still shows up.
+  Header has a wallet icon (top-right) that routes to Wallet.
+- **Create Circle** — parameters + live payout preview. First-time create
+  triggers the **one-time vault activation** TonConnect transaction
+  (~0.5 TON funding) on submit; subsequent creates are gasless.
+- **Post-create** — full-bleed "Now invite your participants!" card with the
+  activation rule restated ("the circle activates once every seat is
+  filled"), plus copy/share/Open buttons.
+- **Join Circle** — circle terms, per-slot payout table, warnings + consent.
+  Organizers may also reach this screen (via the Detail page's "Join as a
+  participant" CTA) to claim a slot in their own circle.
+- **Circle Detail** — progress, next-round countdown, my contribution status,
+  Circle info panel (contribution / interval / fee / policy / α_max /
+  members N/total), members list, round history link, Tonscan link, and
+  organizer-only **Delete circle** + **Join as a participant** actions
+  (status = `Created` only).
+- **Wallet** — the user's TonConnect wallet + the **gasless proxy vault**:
+  balance, **Top up**, **Withdraw to any address** (signed-intent relay) and
+  **Withdraw all to my wallet** (cash-out, gasless).
+- **Settings** — language + notification toggles.
 
-Organizer sets parameters directly. Moving a slider updates the payout table in real time.
+### 5.2 Create Circle details
 
-### 5.3 Join Kye details
+Organizer sets parameters directly. Moving a slider updates the payout table
+in real time. The Round-interval selector exposes presets `1m (test, testnet
+only) / 1w / 2w / 3w / 4w`; the contract accepts any value in
+`[60 s, 90 days]`, so adding/removing presets is an app-layer change.
 
-Circle terms + per-slot payout table + warning area + consent checkbox (required when at least one warning fires).
+### 5.3 Join Circle details
+
+Circle terms + per-slot payout table + warning area + consent checkbox
+(required when at least one warning fires).
 
 ### 5.4 Design
 
 - Auto-switching Telegram dark / light theme
-- Primary: #2481cc
-- Font: system + Pretendard fallback
+- Primary: #E85D2F (Roosta orange)
+- Font: system + Pretendard / Inter fallback
 - BackButton and MainButton used throughout
+- Long unbroken strings (TON addresses, BoC blobs) always wrap — the page
+  never produces a horizontal scrollbar in the Telegram WebView.
+- Every relay/top-up/withdraw action shows a full-screen `LoadingOverlay`
+  while the request is in flight.
+
+### 5.5 Backend HTTP surface
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/health` | liveness |
+| GET | `/me` | self + circles (member ∪ organizer, cancelled filtered out) |
+| PATCH | `/me/wallet` | persist connected TON wallet |
+| PATCH | `/me/vault` | register the deterministic RoostaVault address |
+| PATCH | `/me/notification-settings` | per-user toggles |
+| GET | `/kyes/:id` | circle detail (kye + members) |
+| GET | `/kyes/:id/rounds` | round history |
+| POST | `/kyes` | predict child address + pre-insert kye row (gasless flow then signs CreateKye) |
+| POST | `/kyes/:id/join` | reserve a slot (pessimistic 60 s lock) |
+| GET | `/relay/state?vault=…` | on-chain vault state (deployed/seqno/balance) |
+| POST | `/relay` | broadcast a signed `VaultExecute` (gasless relay) |
+
+All authenticated endpoints require a valid Telegram `initData` header. The
+relayer additionally re-verifies the ed25519 signature off-chain (against
+the vault's on-chain `pubKey`) and rejects stale `seqno` / expired
+`validUntil` before spending gas.
 
 ---
 
@@ -276,8 +377,19 @@ Top items: malicious organizer (UI warnings + Terms), mass default (policies app
 
 ## 11. Out of Scope (Roadmap)
 
-V2: Lottery/Bidding, organizer reputation NFT, multi-token, discovery.
+V2: Lottery/Bidding, organizer reputation NFT, multi-token, discovery,
+jUSDT migration (the vault forwards arbitrary inner bodies, so this is
+additive — no contract surgery required).
 V3: Token governance, insurance pool, cross-chain, corporate circles.
+
+### 11.1 Gasless Proxy Vault — Post-MVP addition (shipped on testnet)
+
+Originally a roadmap item; now implemented. Per-user `RoostaVault` holds funds
+and executes session-key-signed intents the backend relayer broadcasts. The
+user signs one TonConnect transaction to fund the vault, then every Roosta
+action — create / join / contribute / withdraw / delete — is gasless. Mainnet
+deployment is intentionally out of scope of this iteration; see the security
+review for the V-01 … V-17 findings and phase-2 hardening list.
 
 ---
 

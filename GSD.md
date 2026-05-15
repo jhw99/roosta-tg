@@ -1,11 +1,17 @@
-# Roosta GSD v1.0
+# Roosta GSD v1.1
 
 **Telegram-Native ROSCA Protocol on TON**
 Korean *kye* (契), reimagined as a Telegram Mini App.
 
-- **Version**: 1.0 · Production MVP
-- **Date**: 2026-05-12
+- **Version**: 1.1 · Production MVP + Gasless Proxy Vault
+- **Date**: 2026-05-15
 - **Author**: Jhenry (Hyunwoo Jang)
+- **Changelog v1.1**: Polymarket-style gasless `RoostaVault` proxy + backend
+  relayer (one-time activation, then every action is gasless); organizer may
+  opt into a member slot; organizer can delete a circle before activation;
+  `[60 s, 90 days]` interval bounds at the contract (testnet exposes a 1-min
+  preset for QA). See `docs/GASLESS_ARCHITECTURE.md` and
+  `docs/VAULT_SECURITY_REVIEW.md` for full detail.
 
 ---
 

@@ -186,8 +186,11 @@ export const createKyeResponseSchema = z.object({
 });
 
 export const joinKyeResponseSchema = z.object({
-  reservationId: z.string(),
-  expiresAt: z.number(),
+  ok: z.boolean().optional(),
+  kyeId: z.string().optional(),
+  orderNum: z.number().int().optional(),
+  reservationId: z.string().optional(),
+  expiresAt: z.union([z.string(), z.number()]).optional(),
 });
 
 export const notificationSettingsSchema = z.object({

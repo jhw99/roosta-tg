@@ -99,6 +99,12 @@ export class EventIndexer {
 
   /** Process one polling cycle for all registered contracts. Exposed for tests. */
   async tick(): Promise<void> {
+    // Refresh the registry from DB each tick so circles created via the
+    // pre-insert path in POST /kyes (after the indexer has already started)
+    // start getting polled within one cycle. Cheap — one SELECT per tick.
+    await this.registry.loadFromDb().catch((err) =>
+      logger.warn({ err }, 'registry refresh failed'),
+    );
     const addrs = this.registry.list();
     for (const addr of addrs) {
       const cursor = this.cursors.get(addr) ?? { lastProcessedLt: 0n, lastProcessedHash: null };

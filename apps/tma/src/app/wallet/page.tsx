@@ -60,6 +60,14 @@ export default function Wallet() {
     setBusy('deposit'); setErr(null); setMsg(null);
     try {
       await vault.topUp(amount);
+      // The deposit is a TonConnect-signed tx the backend cannot observe.
+      // Sync the server-tracked test USDC balance with the same amount so
+      // the wallet line stays accurate.
+      const nano = usdcToNano(amount);
+      try {
+        const res = await api.notifyDeposit(nano);
+        if (user) setUser({ ...user, testUsdcBalance: res.testUsdcBalance });
+      } catch { /* non-fatal: chain truth still wins */ }
       setMsg(s.wallet.depositDone);
       closeSheet();
       await vault.refresh();
@@ -68,7 +76,7 @@ export default function Wallet() {
     } finally {
       setBusy(null);
     }
-  }, [vault, amount, s]);
+  }, [vault, amount, user, setUser, s]);
 
   const onWithdraw = useCallback(async () => {
     if (!vault.vaultAddress || !vault.ownerAddress) {

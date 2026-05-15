@@ -62,17 +62,18 @@ app.use('/kyes', initDataMiddleware(env.TELEGRAM_BOT_TOKEN));
 app.use('/relay', initDataMiddleware(env.TELEGRAM_BOT_TOKEN));
 app.use('/relay/*', initDataMiddleware(env.TELEGRAM_BOT_TOKEN));
 // Circle detail + rounds are PUBLIC reads so an invite link works in a plain
-// browser (no Telegram initData). Write paths (POST /kyes/:id/join, contribute,
-// cancel, etc.) still require initData auth — see the catch-all below.
-app.use('/kyes/:id', async (c, next) => {
-  if (c.req.method === 'GET') return next();
+// browser (no Telegram initData). Every other /kyes/* route — POST join,
+// contribute, cancel, delete, etc. — still requires initData auth.
+//
+// Hono runs ALL `app.use` middlewares whose pattern matches, so we can't have
+// a public /kyes/:id middleware sitting in front of a catch-all initData
+// middleware: the catch-all would still run and reject the public GETs. One
+// consolidated middleware avoids the double-match.
+const PUBLIC_KYE_GET = /^\/kyes\/[^/]+(?:\/rounds)?$/;
+app.use('/kyes/*', async (c, next) => {
+  if (c.req.method === 'GET' && PUBLIC_KYE_GET.test(c.req.path)) return next();
   return initDataMiddleware(env.TELEGRAM_BOT_TOKEN)(c, next);
 });
-app.use('/kyes/:id/rounds', async (c, next) => {
-  if (c.req.method === 'GET') return next();
-  return initDataMiddleware(env.TELEGRAM_BOT_TOKEN)(c, next);
-});
-app.use('/kyes/*', initDataMiddleware(env.TELEGRAM_BOT_TOKEN));
 
 app.route('/me', me);
 app.route('/kyes', kyes);

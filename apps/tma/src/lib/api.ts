@@ -284,6 +284,16 @@ export const api = {
       { method: 'POST' },
     ),
 
+  // Sync server-tracked test USDC balance after a TonConnect deposit. The
+  // server has no way to observe the wallet→vault tx directly, so the TMA
+  // calls this with the same amount it just sent.
+  notifyDeposit: async (amount: bigint) =>
+    apiRequest(
+      '/me/balance/deposit',
+      z.object({ ok: z.boolean(), testUsdcBalance: z.string() }),
+      { method: 'POST', body: { amount: amount.toString() } },
+    ),
+
   // --- Gasless vault ---
   saveVault: async (sessionPubkey: string, vaultAddress: string) => {
     if (isDemoMode()) return { ok: true, vaultAddress };

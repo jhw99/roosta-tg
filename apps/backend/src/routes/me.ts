@@ -290,6 +290,38 @@ me.post('/faucet', async (c) => {
   return c.json({ ok: true, amount: FAUCET_AMOUNT.toString(), testUsdcBalance: newBalance });
 });
 
+// Client-trust deposit sync. The TMA sends an on-chain top-up to the vault via
+// TonConnect (we have no server-side hook into that path), then calls this
+// endpoint with the same amount so the server-tracked test USDC balance
+// reflects the move. The vault's on-chain balance is the real source of truth;
+// this column only feeds the wallet-balance UI line. Underflow clamps at 0.
+const BalanceDepositBody = z.object({
+  amount: z.string().regex(/^\d+$/),
+});
+
+me.post('/balance/deposit', async (c) => {
+  const sb = getSupabase();
+  if (!sb) return fail(c, 500, 'no_db', 'Database not configured');
+  const tg = extractTelegramUser(c);
+  if (!tg) return fail(c, 401, 'no_user', 'No Telegram user in initData');
+  const body = await c.req.json().catch(() => null);
+  const parsed = BalanceDepositBody.safeParse(body);
+  if (!parsed.success) return fail(c, 400, 'invalid_body', parsed.error.message);
+
+  const user = await resolveOrCreateUser(sb, tg);
+  if (!user) return fail(c, 500, 'user_upsert', 'Could not create user row');
+
+  const amount = BigInt(parsed.data.amount);
+  const current = BigInt(user.test_usdc_balance);
+  const next = current > amount ? current - amount : 0n;
+  const { error } = await sb
+    .from('users')
+    .update({ test_usdc_balance: next.toString() })
+    .eq('id', user.id);
+  if (error) return fail(c, 500, 'db_error', error.message);
+  return c.json({ ok: true, testUsdcBalance: next.toString() });
+});
+
 const NotificationSettingsBody = z.object({
   settings: z.record(z.string(), z.boolean()),
 });

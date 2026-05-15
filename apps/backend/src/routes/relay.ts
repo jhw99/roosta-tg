@@ -23,6 +23,8 @@ import { fail } from '../lib/errors.js';
 import { logger } from '../lib/logger.js';
 import { readVaultState } from '../lib/vault.js';
 import { sendInternalMessage } from '../scheduler/walletService.js';
+import { getSupabase } from '../lib/supabase.js';
+import { extractTelegramUser, resolveOrCreateUser } from '../lib/currentUser.js';
 
 export const relay = new Hono();
 
@@ -145,6 +147,25 @@ relay.post('/', async (c) => {
       { vaultAddress: vaultRaw, intentSeqno: intent.seqno.toString(), walletSeqno: seqno },
       'relayed vault intent',
     );
+    // If the intent forwards funds to the user's own wallet (= withdraw),
+    // credit the server-tracked test USDC balance so the wallet UI reflects
+    // the new balance without waiting on chain observation.
+    try {
+      const sb = getSupabase();
+      const tg = extractTelegramUser(c);
+      if (sb && tg) {
+        const user = await resolveOrCreateUser(sb, tg);
+        if (user?.wallet_address) {
+          const targetEq = Address.parse(user.wallet_address).equals(target);
+          if (targetEq) {
+            const newBalance = (BigInt(user.test_usdc_balance) + intent.amount).toString();
+            await sb.from('users').update({ test_usdc_balance: newBalance }).eq('id', user.id);
+          }
+        }
+      }
+    } catch (e) {
+      logger.warn({ err: (e as Error).message }, 'withdraw balance credit failed (non-fatal)');
+    }
     return c.json({ ok: true, intentSeqno: intentRaw.seqno, walletSeqno: seqno });
   } catch (e) {
     logger.error({ err: (e as Error).message, vaultAddress: vaultRaw }, 'relay broadcast failed');

@@ -61,10 +61,15 @@ app.use('/me/*', initDataMiddleware(env.TELEGRAM_BOT_TOKEN));
 app.use('/kyes', initDataMiddleware(env.TELEGRAM_BOT_TOKEN));
 app.use('/relay', initDataMiddleware(env.TELEGRAM_BOT_TOKEN));
 app.use('/relay/*', initDataMiddleware(env.TELEGRAM_BOT_TOKEN));
-// Bot reads kye detail via GET /kyes/:id; other /kyes/* (POST create, join, rounds)
-// stay under strict initData auth.
+// Circle detail + rounds are PUBLIC reads so an invite link works in a plain
+// browser (no Telegram initData). Write paths (POST /kyes/:id/join, contribute,
+// cancel, etc.) still require initData auth — see the catch-all below.
 app.use('/kyes/:id', async (c, next) => {
-  if (c.req.method === 'GET') return serviceMw(c, next);
+  if (c.req.method === 'GET') return next();
+  return initDataMiddleware(env.TELEGRAM_BOT_TOKEN)(c, next);
+});
+app.use('/kyes/:id/rounds', async (c, next) => {
+  if (c.req.method === 'GET') return next();
   return initDataMiddleware(env.TELEGRAM_BOT_TOKEN)(c, next);
 });
 app.use('/kyes/*', initDataMiddleware(env.TELEGRAM_BOT_TOKEN));

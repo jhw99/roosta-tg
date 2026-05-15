@@ -10,6 +10,26 @@ import {
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? '/api';
 
+function friendlyMessage(method: string, path: string, status: number, body: unknown): string {
+  // Server-provided error message wins when available.
+  if (body && typeof body === 'object' && 'error' in body) {
+    const msg = (body as { error?: unknown }).error;
+    if (typeof msg === 'string' && msg.length > 0) return msg;
+  }
+  if (status === 401 || status === 403) {
+    // GET on a circle = invite link opened outside Telegram. Writes = stale session.
+    if (method === 'GET') {
+      return '이 링크는 텔레그램의 Roosta 미니앱에서 열어주세요.';
+    }
+    return '세션이 만료됐어요. 미니앱을 다시 열어주세요.';
+  }
+  if (status === 404) return '요청한 항목을 찾을 수 없어요.';
+  if (status === 409) return '이미 처리된 요청이에요.';
+  if (status === 429) return '요청이 너무 잦아요. 잠시 후 다시 시도해주세요.';
+  if (status >= 500) return '서버에 일시적인 문제가 있어요. 잠시 후 다시 시도해주세요.';
+  return '요청을 처리하지 못했어요. 잠시 후 다시 시도해주세요.';
+}
+
 export class ApiError extends Error {
   constructor(message: string, public readonly status: number, public readonly body?: unknown) {
     super(message);
@@ -82,7 +102,7 @@ export async function apiRequest<T>(
       }
 
       if (!res.ok) {
-        throw new ApiError(`API ${method} ${path} failed: ${res.status}`, res.status, data);
+        throw new ApiError(friendlyMessage(method, path, res.status, data), res.status, data);
       }
 
       const parsed = schema.safeParse(data);

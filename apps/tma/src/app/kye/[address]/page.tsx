@@ -130,7 +130,10 @@ export default function KyeDetail({ params }: { params: Promise<{ address: strin
 
   const share = useCallback(() => {
     if (!kye) return;
-    const url = `${typeof window !== 'undefined' ? window.location.origin : ''}/join/${kye.contractAddress}`;
+    // Always share the Telegram bot deep-link so the recipient lands inside the
+    // mini app (where initData / vault / TonConnect are available), not the
+    // bare Vercel URL.
+    const url = `https://t.me/RoostaApp_Bot/app?startapp=join_${kye.contractAddress}`;
     const nav = typeof navigator !== 'undefined' ? (navigator as Navigator & { share?: (d: { url: string; title?: string }) => Promise<void> }) : null;
     if (nav?.share) {
       void nav.share({ url, title: kye.name });

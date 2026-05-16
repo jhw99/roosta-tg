@@ -269,8 +269,15 @@ describe('POST /kyes', () => {
   });
 
   it('returns predicted address on valid params', async () => {
+    // Gasless vault model: route requires user.vault_address to be set.
     fake.seed('users', [
-      { id: 'u-self', telegram_id: 42, wallet_address: '0:0000000000000000000000000000000000000000000000000000000000000000', language: 'en' },
+      {
+        id: 'u-self',
+        telegram_id: 42,
+        wallet_address: '0:0000000000000000000000000000000000000000000000000000000000000000',
+        vault_address: '0:1111111111111111111111111111111111111111111111111111111111111111',
+        language: 'en',
+      },
     ]);
     const prev = process.env.PLATFORM_TREASURY_ADDRESS;
     process.env.PLATFORM_TREASURY_ADDRESS =
@@ -338,21 +345,29 @@ describe('GET /kyes/:id', () => {
     const app = mountApp();
     const res = await app.request('/kyes/EQ1');
     expect(res.status).toBe(200);
+    // Wire shape: `kye.currentRound` is the round number (a plain integer),
+    // not an object — see routes/kyes.ts:109. `members` is at the top level,
+    // not nested under `kye`.
     const body = (await res.json()) as {
-      kye: { id: string };
+      kye: { id: string; currentRound: number };
       members: unknown[];
-      currentRound: { round_num: number } | null;
     };
     expect(body.kye.id).toBe('k1');
     expect(body.members.length).toBe(2);
-    expect(body.currentRound?.round_num).toBe(1);
+    expect(body.kye.currentRound).toBe(1);
   });
 });
 
 describe('POST /kyes/:id/join', () => {
   beforeEach(() => {
     fake.seed('users', [
-      { id: 'u-self', telegram_id: 42, wallet_address: 'EQwallet', language: 'en' },
+      {
+        id: 'u-self',
+        telegram_id: 42,
+        wallet_address: 'EQwallet',
+        vault_address: 'EQvault',
+        language: 'en',
+      },
     ]);
     fake.seed('kyes', [
       {
@@ -393,10 +408,20 @@ describe('POST /kyes/:id/join', () => {
     expect(res.status).toBe(409);
   });
 
-  it('403 when caller is the organizer', async () => {
-    // Update self user to be the organizer.
+  it('organizer may opt into a member slot (commit 0f276c4)', async () => {
+    // Policy changed: organizers can now join their own circles. This test
+    // was previously "403 when caller is the organizer"; the GSD v1.1
+    // (commit fefd291) introduced "organizer-may-join" so the same call
+    // now succeeds. Keep the test as a regression guard for the new
+    // intent.
     fake.seed('users', [
-      { id: 'u-organizer', telegram_id: 42, wallet_address: 'EQwallet', language: 'en' },
+      {
+        id: 'u-organizer',
+        telegram_id: 42,
+        wallet_address: 'EQwallet',
+        vault_address: 'EQvault',
+        language: 'en',
+      },
     ]);
     const app = mountApp();
     const res = await app.request('/kyes/EQ1/join', {
@@ -404,6 +429,6 @@ describe('POST /kyes/:id/join', () => {
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ orderNum: 2 }),
     });
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(200);
   });
 });

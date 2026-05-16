@@ -31,6 +31,8 @@ app.use(
       if (/^https:\/\/([a-z0-9-]+\.)*vercel\.app$/.test(origin)) return origin;
       if (/^https:\/\/([a-z0-9-]+\.)*roosta\.app$/.test(origin)) return origin;
       if (origin === 'http://localhost:3000') return origin;
+      // Allow loopback origins on any port for local QA / Playwright runs.
+      if (/^https?:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin)) return origin;
       return null;
     },
     allowHeaders: [

@@ -84,7 +84,9 @@ describe('/linkkye access control', () => {
     const ctx = mkCtx(kyeRow.contract_address, 2);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await handler(ctx as any);
-    expect(ctx.reply.mock.calls[0]![0]).toMatch(/only the kye organizer/i);
+    // Handler text shifted from "kye" → "circle" to match user-facing
+    // copy across the rest of the codebase; assert on the stable parts.
+    expect(ctx.reply.mock.calls[0]![0]).toMatch(/only the (kye|circle) organizer/i);
   });
 
   it('rejects in private chat', async () => {

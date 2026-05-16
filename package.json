@@ -11,9 +11,19 @@
     "contracts:build": "pnpm --filter contracts build",
     "contracts:test": "pnpm --filter contracts test",
     "test:e2e": "packages/contracts/node_modules/.bin/vitest run tests/e2e/lifecycle.spec.ts",
-    "db:migrate": "echo 'Run supabase/migrations/*.sql against your Supabase project'"
+    "db:migrate": "echo 'Run supabase/migrations/*.sql against your Supabase project'",
+    "qa:typecheck": "pnpm -r --filter='./apps/*' --filter='./packages/shared' --filter='./packages/contracts' exec tsc --noEmit",
+    "qa:lint": "pnpm -r lint",
+    "qa:unit": "pnpm -r test",
+    "qa:contracts": "pnpm contracts:test",
+    "qa:integration": "playwright test --config=playwright.config.ts --grep @integration",
+    "qa:e2e": "playwright test --config=playwright.config.ts",
+    "qa:e2e:prod": "PLAYWRIGHT_USE_PROD=1 playwright test --config=playwright.config.ts",
+    "qa:smoke": "node scripts/qa-smoke.mjs",
+    "qa:all": "pnpm qa:typecheck && pnpm qa:lint && pnpm qa:unit && pnpm qa:contracts && pnpm qa:e2e:prod"
   },
   "devDependencies": {
+    "@playwright/test": "^1.60.0",
     "playwright": "^1.60.0",
     "prettier": "^3.3.3",
     "tsx": "^4.19.2",

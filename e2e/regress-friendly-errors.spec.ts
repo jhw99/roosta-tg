@@ -41,14 +41,17 @@ test.describe('regress-friendly-errors — api.ts source contract', () => {
 
   test('Korean strings for the documented status codes are present', () => {
     const src = fs.readFileSync(API_TS, 'utf8');
-    // 401/403 GET — invite-link hint
+    // 401/403 — invite-link hint (post-d373cfe: same message for GET and
+    // writes, since the only realistic 401 source is "outside Telegram").
     expect(src).toMatch(/텔레그램.*Roosta.*미니앱/);
-    // 401/403 write — session expired
-    expect(src).toMatch(/세션이 만료/);
     // 404
     expect(src).toMatch(/찾을 수 없/);
     // 5xx
     expect(src).toMatch(/서버에.*문제|다시 시도/);
+    // Internal auth strings must be deny-listed (post-d373cfe) so the
+    // raw "missing initData" never leaks to UI.
+    expect(src).toMatch(/missing initData/);
+    expect(src).toMatch(/INTERNAL_AUTH_MESSAGES/);
   });
 
   test('server-provided {error} body takes precedence', () => {

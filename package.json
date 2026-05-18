@@ -20,10 +20,13 @@
     "qa:e2e": "playwright test --config=playwright.config.ts",
     "qa:e2e:prod": "PLAYWRIGHT_USE_PROD=1 playwright test --config=playwright.config.ts",
     "qa:smoke": "node scripts/qa-smoke.mjs",
+    "qa:build:cold": "node scripts/qa-build-cold.mjs",
+    "qa:e2e:full": "node scripts/qa-with-secrets.mjs -- playwright test --config=playwright.config.ts",
     "qa:all": "pnpm qa:typecheck && pnpm qa:lint && pnpm qa:unit && pnpm qa:contracts && pnpm qa:e2e:prod"
   },
   "devDependencies": {
     "@playwright/test": "^1.60.0",
+    "@supabase/supabase-js": "^2.105.4",
     "playwright": "^1.60.0",
     "prettier": "^3.3.3",
     "tsx": "^4.19.2",

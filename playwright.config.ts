@@ -19,6 +19,18 @@ const USE_PROD = process.env.PLAYWRIGHT_USE_PROD === '1';
 
 const TEST_BOT_TOKEN = process.env.PLAYWRIGHT_BOT_TOKEN ?? 'qa-fake-bot-token';
 
+// Optional: pass real Supabase + TON env so the backend actually serves
+// /me, /kyes/:id, /relay with live data. Loaded from secrets.local.json
+// by scripts/qa-with-secrets.mjs OR set explicitly on the env. Without
+// these the backend boots in "no DB" mode and most routes 500 — strict-
+// page already tolerates that for routing-only specs, but the seeded-
+// integration specs require them.
+const SUPABASE_URL = process.env.SUPABASE_URL ?? '';
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
+const TON_NETWORK = process.env.TON_NETWORK ?? 'testnet';
+const TON_API_ENDPOINT =
+  process.env.TON_API_ENDPOINT ?? 'https://testnet.toncenter.com/api/v2/jsonRPC';
+
 const tmaCmd = USE_PROD
   ? `pnpm --filter tma build && pnpm --filter tma exec next start -p ${TMA_PORT}`
   : `pnpm --filter tma exec next dev -p ${TMA_PORT}`;
@@ -65,6 +77,9 @@ export default defineConfig({
         PORT: String(BACKEND_PORT),
         TELEGRAM_BOT_TOKEN: TEST_BOT_TOKEN,
         NODE_ENV: USE_PROD ? 'production' : 'development',
+        ...(SUPABASE_URL ? { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY } : {}),
+        TON_NETWORK,
+        TON_API_ENDPOINT,
       },
     },
     {

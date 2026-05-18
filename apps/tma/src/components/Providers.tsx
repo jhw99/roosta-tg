@@ -4,10 +4,11 @@ import { useEffect, type ReactNode } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { TonConnectUIProvider } from '@tonconnect/ui-react';
 import { WalletSync } from './WalletSync';
-import { getWebApp, getTelegramLanguage } from '../lib/webapp';
+import { getWebApp, getTelegramLanguage, getInitData } from '../lib/webapp';
 import { detectLang } from '../i18n';
 import { useAppStore } from '../store';
 import { markDemoMode, getDemoMe } from '../lib/demo';
+import { api, ApiError } from '../lib/api';
 
 const MANIFEST_URL =
   process.env.NEXT_PUBLIC_TONCONNECT_MANIFEST_URL ??
@@ -37,6 +38,27 @@ export function Providers({ children }: { children: ReactNode }) {
       setLang(detectLang(tgLang, langOverride), false);
     }
     setHydrated(true);
+    // Global /me fetch — every route reads `user` from the store, but
+    // previously only `/` triggered the fetch. A direct nav to /kye/<addr>
+    // would leave user=null and gate-checks like `me = members.find(m =>
+    // m.userId === user.id)` would always be null → no Contribute button
+    // (regression isMe bug 3201bf5). Fetch here once after hydration so
+    // every page picks up the user state.
+    if (typeof window !== 'undefined' && getInitData()) {
+      void (async () => {
+        try {
+          const data = await api.me();
+          setUser(data.user);
+          setKyes(data.kyes ?? []);
+        } catch (e) {
+          // Outside Telegram or session expired → user stays null, pages
+          // fall back to public/anonymous behavior. Don't surface.
+          if (!(e instanceof ApiError && (e.status === 401 || e.status === 403))) {
+            console.warn('Providers /me fetch failed', e);
+          }
+        }
+      })();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

@@ -91,6 +91,9 @@ export const en = {
     stepConfirmJoinTitle: 'Confirm join',
     stepConfirmJoinBody: 'You will join the circle with the slot you picked. The relay path is gasless, no additional wallet approval is needed.',
     stepConfirmJoinProceed: 'Continue',
+    stepTelegramTitle: 'Open this in the Telegram mini app',
+    stepTelegramBody: 'Joining a circle requires the Telegram mini app (wallet + session auth). Tap below to reopen this page inside Telegram.',
+    stepTelegramOpen: 'Open in Telegram',
     cancel: 'Cancel',
   },
   kye: {

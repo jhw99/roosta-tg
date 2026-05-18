@@ -93,6 +93,9 @@ export const ko: Strings = {
     stepConfirmJoinTitle: '계 참여 확인',
     stepConfirmJoinBody: '선택한 슬롯으로 계에 참여합니다. 가스리스 (relay) 경로라 추가 지갑 승인 없이 즉시 진행됩니다.',
     stepConfirmJoinProceed: '참여 진행',
+    stepTelegramTitle: '텔레그램 미니앱에서 열어주세요',
+    stepTelegramBody: '계 참여는 텔레그램 미니앱 안에서만 진행 가능합니다 (지갑/세션 인증 필요). 아래 버튼으로 텔레그램에서 이 페이지를 다시 열어주세요.',
+    stepTelegramOpen: '텔레그램에서 열기',
     cancel: '취소',
   },
   kye: {

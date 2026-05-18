@@ -10,18 +10,28 @@ import {
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? '/api';
 
+// Backend strings that are technical/internal and must NOT be shown to the
+// user — friendlyMessage falls back to a localized hint for these.
+const INTERNAL_AUTH_MESSAGES = new Set([
+  'missing initData',
+  'invalid initData',
+  'no_user',
+  'No Telegram user in initData',
+]);
+
 function friendlyMessage(method: string, path: string, status: number, body: unknown): string {
-  // Server-provided error message wins when available.
+  // For auth failures, ALWAYS prefer the localized hint — the server's body
+  // message is internal ("missing initData") and useless to end users.
+  if (status === 401 || status === 403) {
+    return '이 링크는 텔레그램의 Roosta 미니앱에서 열어주세요. (https://t.me/RoostaApp_Bot)';
+  }
+  // Server-provided business-error message wins when available (e.g.
+  // "already joined", "slot taken").
   if (body && typeof body === 'object' && 'error' in body) {
     const msg = (body as { error?: unknown }).error;
-    if (typeof msg === 'string' && msg.length > 0) return msg;
-  }
-  if (status === 401 || status === 403) {
-    // GET on a circle = invite link opened outside Telegram. Writes = stale session.
-    if (method === 'GET') {
-      return '이 링크는 텔레그램의 Roosta 미니앱에서 열어주세요.';
+    if (typeof msg === 'string' && msg.length > 0 && !INTERNAL_AUTH_MESSAGES.has(msg)) {
+      return msg;
     }
-    return '세션이 만료됐어요. 미니앱을 다시 열어주세요.';
   }
   if (status === 404) return '요청한 항목을 찾을 수 없어요.';
   if (status === 409) return '이미 처리된 요청이에요.';

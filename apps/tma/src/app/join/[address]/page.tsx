@@ -17,7 +17,11 @@ import { api, ApiError, type ApiKye, type ApiMember } from '../../../lib/api';
 import { useAppStore } from '../../../store';
 import { computeWarnings } from '../../../lib/warnings';
 import { signAndRelay } from '../../../lib/vault';
+import { getInitData } from '../../../lib/webapp';
 import { fmtUSDT, shortAddress } from '../../../lib/format';
+
+const TG_BOT_DEEPLINK = (addr: string) =>
+  `https://t.me/RoostaApp_Bot/app?startapp=join_${addr}`;
 
 type OnboardStep = null | 'faucet' | 'activate' | 'join';
 
@@ -66,7 +70,7 @@ export default function JoinKye({ params }: { params: Promise<{ address: string 
   // clicks the Join CTA, and we open whichever modal corresponds to the
   // FIRST prerequisite that's still missing. Each modal CTA performs the
   // step, closes itself, and re-evaluates on next click.
-  const [stepModal, setStepModal] = useState<null | 'wallet' | 'vault' | 'confirm'>(null);
+  const [stepModal, setStepModal] = useState<null | 'wallet' | 'vault' | 'confirm' | 'telegram'>(null);
   const [stepBusy, setStepBusy] = useState(false);
 
   useEffect(() => {
@@ -114,6 +118,14 @@ export default function JoinKye({ params }: { params: Promise<{ address: string 
   // the confirm modal's "Continue" runs the actual join via runJoin().
   const onJoinClick = useCallback(() => {
     if (!kye || selected == null) return;
+    // The backend onboarding routes (/me/faucet, /me/vault, /relay) all
+    // require Telegram initData. If we're in a plain browser, surface a
+    // dedicated "Open in Telegram" modal up front — otherwise the user
+    // hits a confusing 401 mid-flow.
+    if (!getInitData()) {
+      setStepModal('telegram');
+      return;
+    }
     if (!vault.ownerAddress) {
       setStepModal('wallet');
       return;
@@ -351,6 +363,22 @@ export default function JoinKye({ params }: { params: Promise<{ address: string 
         busy={stepBusy}
       >
         {s.join.stepConfirmJoinBody}
+      </ConfirmationDialog>
+
+      <ConfirmationDialog
+        open={stepModal === 'telegram'}
+        title={s.join.stepTelegramTitle}
+        confirmLabel={s.join.stepTelegramOpen}
+        cancelLabel={s.join.cancel}
+        onConfirm={() => {
+          if (kye && typeof window !== 'undefined') {
+            window.location.href = TG_BOT_DEEPLINK(kye.contractAddress);
+          }
+        }}
+        onCancel={() => setStepModal(null)}
+        busy={stepBusy}
+      >
+        {s.join.stepTelegramBody}
       </ConfirmationDialog>
     </main>
   );

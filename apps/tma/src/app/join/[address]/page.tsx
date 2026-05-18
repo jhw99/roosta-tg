@@ -3,12 +3,14 @@
 import { use, useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Address, toNano } from '@ton/core';
+import { useTonConnectUI } from '@tonconnect/ui-react';
 import { buildJoinKyeBody } from '@roosta/shared/contractMessages';
 import { PageHeader } from '../../../components/PageHeader';
 import { PayoutTable } from '../../../components/PayoutTable';
 import { WarningCallout } from '../../../components/WarningCallout';
 import { MainButtonShim } from '../../../components/MainButtonShim';
 import { LoadingOverlay } from '../../../components/LoadingOverlay';
+import { ConfirmationDialog } from '../../../components/ConfirmationDialog';
 import { useStrings } from '../../../hooks/useStrings';
 import { useVault } from '../../../hooks/useVault';
 import { api, ApiError, type ApiKye, type ApiMember } from '../../../lib/api';
@@ -48,6 +50,7 @@ export default function JoinKye({ params }: { params: Promise<{ address: string 
   const s = useStrings();
   const router = useRouter();
   const vault = useVault();
+  const [tonConnectUI] = useTonConnectUI();
   const user = useAppStore((st) => st.user);
   const setUser = useAppStore((st) => st.setUser);
 
@@ -59,6 +62,12 @@ export default function JoinKye({ params }: { params: Promise<{ address: string 
   const [consent, setConsent] = useState(false);
   const [joining, setJoining] = useState(false);
   const [onboardStep, setOnboardStep] = useState<OnboardStep>(null);
+  // Step-modal state — drives the wallet → vault → join wizard. The user
+  // clicks the Join CTA, and we open whichever modal corresponds to the
+  // FIRST prerequisite that's still missing. Each modal CTA performs the
+  // step, closes itself, and re-evaluates on next click.
+  const [stepModal, setStepModal] = useState<null | 'wallet' | 'vault' | 'confirm'>(null);
+  const [stepBusy, setStepBusy] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -99,21 +108,48 @@ export default function JoinKye({ params }: { params: Promise<{ address: string 
   const canJoin =
     !!kye && selected != null && !takenSlots.includes(selected) && (warnings.length === 0 || consent);
 
-  const submit = useCallback(async () => {
+  // Routes the user to the FIRST unmet prerequisite. Click on the Join
+  // CTA always lands here; depending on state we open the wallet modal,
+  // the vault modal, or the confirm modal. Once everything is satisfied
+  // the confirm modal's "Continue" runs the actual join via runJoin().
+  const onJoinClick = useCallback(() => {
     if (!kye || selected == null) return;
     if (!vault.ownerAddress) {
-      setError(s.join.needsWallet);
+      setStepModal('wallet');
       return;
     }
-    setJoining(true);
+    if (!vault.ready) {
+      setStepModal('vault');
+      return;
+    }
+    setStepModal('confirm');
+  }, [kye, selected, vault.ownerAddress, vault.ready]);
+
+  // Step 1 modal CTA — open the TonConnect wallet selector. The vault
+  // hook picks up the owner address as soon as the wallet emits its
+  // address event, so we just close the modal; the user will tap Join
+  // again to move to step 2.
+  const onConnectWallet = useCallback(async () => {
+    setStepBusy(true);
+    try {
+      await tonConnectUI.openModal();
+    } finally {
+      setStepBusy(false);
+      setStepModal(null);
+    }
+  }, [tonConnectUI]);
+
+  // Step 2 modal CTA — run faucet (if needed) + vault.activate. This
+  // triggers a real TonConnect popup for the activation transaction.
+  const onActivateVault = useCallback(async () => {
+    if (!vault.ownerAddress) {
+      setStepModal('wallet');
+      return;
+    }
+    setStepBusy(true);
     setError(null);
     try {
-      // Onboarding step 1 — test USDC faucet (testnet only). Without TON in
-      // the owner wallet, the vault activation tx below would bounce. On
-      // mainnet the backend returns 403 and we skip; on testnet we wait until
-      // the drop actually lands on chain before continuing.
       if (!user?.faucetClaimedAt) {
-        setOnboardStep('faucet');
         try {
           const res = await api.faucet();
           if (user) {
@@ -125,30 +161,32 @@ export default function JoinKye({ params }: { params: Promise<{ address: string 
           }
           await waitForWalletFunded(vault.ownerAddress, toNano(JOIN_ACTIVATION_FUNDING_TON));
         } catch (e) {
-          // 403 = mainnet faucet disabled, that's fine. 409 = already claimed
-          // (e.g. user previously claimed from another device) — also fine,
-          // chain balance check below will catch a truly empty wallet.
           if (!(e instanceof ApiError && (e.status === 403 || e.status === 409))) throw e;
         }
       }
+      await vault.activate(JOIN_ACTIVATION_FUNDING_TON);
+      setStepModal('confirm');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : s.common.error);
+      setStepModal(null);
+    } finally {
+      setStepBusy(false);
+    }
+  }, [vault, user, setUser, s.common.error]);
 
-      // Onboarding step 2 — one-time gasless vault activation. Funds the
-      // vault + deploys it via a single wallet-signed transaction.
-      let vaultAddress = vault.vaultAddress;
-      if (!vault.ready) {
-        setOnboardStep('activate');
-        await vault.activate(JOIN_ACTIVATION_FUNDING_TON);
-        vaultAddress = vault.vaultAddress;
-      }
-      if (!vaultAddress) throw new Error('Vault not ready yet — try again in a moment.');
-
-      // Onboarding step 3 — actual join. The vault is the on-chain member;
-      // sign the JoinKye intent with the session key and relay it (no wallet
-      // popup, no gas).
+  // Step 3 — the actual join. Same logic as the old submit() but only
+  // the gasless tail (no faucet/activate, those happen in step 2).
+  const runJoin = useCallback(async () => {
+    if (!kye || selected == null) return;
+    if (!vault.vaultAddress) return;
+    setStepModal(null);
+    setJoining(true);
+    setError(null);
+    try {
       setOnboardStep('join');
       await api.joinKye(address, { orderNum: selected });
       await signAndRelay({
-        vaultAddress,
+        vaultAddress: vault.vaultAddress,
         target: Address.parse(kye.contractAddress),
         amount: JOIN_FORWARD_TON,
         body: buildJoinKyeBody(selected),
@@ -160,11 +198,7 @@ export default function JoinKye({ params }: { params: Promise<{ address: string 
       setJoining(false);
       setOnboardStep(null);
     }
-  }, [
-    kye, selected, address, router, s.common.error, s.join.needsWallet,
-    vault.ready, vault.vaultAddress, vault.ownerAddress, vault.activate,
-    user, setUser,
-  ]);
+  }, [kye, selected, address, router, s.common.error, vault.vaultAddress]);
 
   const joiningMessage =
     onboardStep === 'faucet' ? s.join.onboardClaimingFaucet :
@@ -274,7 +308,7 @@ export default function JoinKye({ params }: { params: Promise<{ address: string 
 
       <MainButtonShim
         text={joining ? s.join.joining : s.join.join}
-        onClick={() => void submit()}
+        onClick={onJoinClick}
         disabled={!canJoin || joining}
       />
       <LoadingOverlay
@@ -282,9 +316,46 @@ export default function JoinKye({ params }: { params: Promise<{ address: string 
         message={joiningMessage}
         hint={s.common.loadingHint}
       />
+
+      <ConfirmationDialog
+        open={stepModal === 'wallet'}
+        title={s.join.stepWalletTitle}
+        confirmLabel={s.join.stepWalletConnect}
+        cancelLabel={s.join.cancel}
+        onConfirm={() => void onConnectWallet()}
+        onCancel={() => setStepModal(null)}
+        busy={stepBusy}
+      >
+        {s.join.stepWalletBody}
+      </ConfirmationDialog>
+
+      <ConfirmationDialog
+        open={stepModal === 'vault'}
+        title={s.join.stepVaultTitle}
+        confirmLabel={s.join.stepVaultActivate}
+        cancelLabel={s.join.cancel}
+        onConfirm={() => void onActivateVault()}
+        onCancel={() => setStepModal(null)}
+        busy={stepBusy}
+      >
+        {s.join.stepVaultBody}
+      </ConfirmationDialog>
+
+      <ConfirmationDialog
+        open={stepModal === 'confirm'}
+        title={s.join.stepConfirmJoinTitle}
+        confirmLabel={s.join.stepConfirmJoinProceed}
+        cancelLabel={s.join.cancel}
+        onConfirm={() => void runJoin()}
+        onCancel={() => setStepModal(null)}
+        busy={stepBusy}
+      >
+        {s.join.stepConfirmJoinBody}
+      </ConfirmationDialog>
     </main>
   );
 }
+
 
 function Info({ label, children }: { label: string; children: React.ReactNode }) {
   return (

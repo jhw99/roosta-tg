@@ -24,31 +24,44 @@ const JOIN_PAGE = path.join(
 );
 
 test.describe('regress-join-onboarding — source contract', () => {
-  test('three-step onboarding present in submit()', () => {
+  test('three onboarding steps remain in the join page', () => {
     const src = fs.readFileSync(JOIN_PAGE, 'utf8');
-    // Step 1: faucet
+    // Step 1: faucet — runs inside onActivateVault before vault.activate.
     expect(src).toMatch(/api\.faucet\(/);
     expect(src).toMatch(/faucetClaimedAt/);
-    // Step 2: vault activation
+    // Step 2: vault activation.
     expect(src).toMatch(/vault\.activate\(/);
     expect(src).toMatch(/JOIN_ACTIVATION_FUNDING_TON/);
-    // Step 3: relay
+    // Step 3: relay (in runJoin).
     expect(src).toMatch(/signAndRelay\(/);
     expect(src).toMatch(/buildJoinKyeBody/);
+  });
+
+  test('step modals exist for each missing prerequisite', () => {
+    const src = fs.readFileSync(JOIN_PAGE, 'utf8');
+    // The Join CTA routes through a 3-state modal: wallet → vault → confirm.
+    expect(src).toMatch(/setStepModal\(['"]wallet['"]\)/);
+    expect(src).toMatch(/setStepModal\(['"]vault['"]\)/);
+    expect(src).toMatch(/setStepModal\(['"]confirm['"]\)/);
+    // The CTA opens the wallet modal first when ownerAddress is missing,
+    // the vault modal when ready=false, and the confirm modal otherwise.
+    expect(src).toMatch(/if\s*\(\s*!vault\.ownerAddress\s*\)[\s\S]{0,80}setStepModal\(['"]wallet['"]\)/);
+    expect(src).toMatch(/if\s*\(\s*!vault\.ready\s*\)[\s\S]{0,80}setStepModal\(['"]vault['"]\)/);
+  });
+
+  test('wallet modal triggers TonConnect open', () => {
+    const src = fs.readFileSync(JOIN_PAGE, 'utf8');
+    expect(src).toMatch(/tonConnectUI\.openModal\(/);
   });
 
   test('onboard step state drives the loading message', () => {
     const src = fs.readFileSync(JOIN_PAGE, 'utf8');
     expect(src).toMatch(/onboardStep|OnboardStep/);
-    expect(src).toMatch(/'faucet'/);
-    expect(src).toMatch(/'activate'/);
     expect(src).toMatch(/'join'/);
   });
 
-  test('429/409 from faucet are swallowed (mainnet / already-claimed)', () => {
+  test('403/409 from faucet are swallowed (mainnet / already-claimed)', () => {
     const src = fs.readFileSync(JOIN_PAGE, 'utf8');
-    // The fix must not throw when faucet returns 403 (mainnet disabled) or
-    // 409 (already claimed). It re-throws every other ApiError.
     expect(src).toMatch(/ApiError[\s\S]{0,200}(403|409)/);
   });
 

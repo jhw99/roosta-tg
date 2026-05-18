@@ -62,7 +62,11 @@ export default function KyeDetail({ params }: { params: Promise<{ address: strin
     };
   }, [address, s.common.error]);
 
-  const me = members.find((m) => m.isMe) ?? null;
+  // GET /kyes/:id is a PUBLIC route (post-fix 4feb400) — the backend does
+  // not see initData and cannot stamp `isMe` per row. Derive locally by
+  // comparing each member's userId to the logged-in /me user.id. Falls
+  // back to the (legacy) backend-stamped isMe when present.
+  const me = members.find((m) => m.isMe || (user && m.userId === user.id)) ?? null;
   const myStatus = me?.currentRoundStatus ?? 'pending';
 
   const contribute = useCallback(async () => {

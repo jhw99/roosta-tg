@@ -25,6 +25,16 @@ export function MainButtonShim({
     (async () => {
       const wa = await getWebApp();
       if (!mounted || !wa) return;
+      // @twa-dev/sdk loads even in a plain browser; it exposes a stub
+      // WebApp object whose `platform === 'unknown'` and whose MainButton
+      // calls are no-ops. Detect that case and FALL THROUGH to the
+      // fallback button (otherwise the page has no visible CTA outside
+      // Telegram — broken invite-link UX). Also accept the SDK only when
+      // a real Telegram client provides initData OR a known platform.
+      const stub =
+        (wa as unknown as { platform?: string }).platform === 'unknown' ||
+        !(wa as unknown as { initData?: string }).initData;
+      if (stub) return;
       setHasNativeMainButton(true);
       const btn = wa.MainButton;
       const handler = () => onClick();

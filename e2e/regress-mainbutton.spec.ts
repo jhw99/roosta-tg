@@ -39,6 +39,16 @@ test.describe('regress-mainbutton — source contract', () => {
     expect(src).not.toMatch(/visible\s*&&\s*!disabled.{0,30}show/);
     expect(src).toMatch(/if\s*\(\s*visible\s*\)\s*btn\.show/);
   });
+
+  test('Telegram SDK stub (plain browser) does NOT block the fallback', () => {
+    // Bug discovered after deploy: @twa-dev/sdk loads in plain browsers
+    // too, returning a stub WebApp whose .platform === 'unknown'. Without
+    // the stub check, hasNativeMainButton becomes true and the fallback
+    // never renders → no CTA on roosta-tg.vercel.app desktop visitors.
+    const src = fs.readFileSync(SHIM, 'utf8');
+    expect(src).toMatch(/platform.{0,20}===\s*['"]unknown['"]/);
+    expect(src).toMatch(/initData/);
+  });
 });
 
 test.describe('regress-mainbutton — desktop fallback visible at 1280px', () => {

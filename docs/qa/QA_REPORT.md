@@ -142,3 +142,41 @@ Run date: 2026-05-16  •  Branch: main  •  Gatekeeper: QA agent  •  Sweep #
 - 실제 TON testnet vault deploy
 - 봇 (grammY) DM 전송
 - 라운드 scheduler 실 시각 동작 (cron / Redis)
+
+---
+
+## Sweep #2 (2026-05-18) — post-deploy hardening
+
+After Phase B shipped, the live deployment surfaced 6 bugs that the
+existing source-grep regression specs did not catch. Sweep #2 closes
+the four QA gaps responsible:
+
+| Gap | Fix |
+|---|---|
+| Cold builds (Vercel cache miss) not simulated | `scripts/qa-build-cold.mjs` + `qa:build:cold` script. Wipes packages/{shared,contracts}/build|dist + apps/*/dist + apps/tma/.next → fresh install → full chain build. Caught locally before deploy. |
+| Backend ran without Supabase in tests | `scripts/qa-with-secrets.mjs` loads SUPABASE_URL/SERVICE_ROLE_KEY from secrets.local.json into the Playwright webServer env. New `qa:e2e:full` script. |
+| No real-data integration specs | `e2e/fixtures/db-seed.ts` (telegram_id 99M-99.99M range, afterAll cleanup) + `e2e/integration-kye-detail-states.spec.ts` (member / non-member / plain browser matrix). |
+| TonConnect popup blocked E2E | `e2e/fixtures/tonconnect-mock.ts` intercepts wallets-v2.json + seeds localStorage with a synthetic bridge-connection. `integration-tonconnect-mock.spec.ts` verifies harness. |
+
+### New source-level fixes during this sweep
+
+- `apps/tma/src/components/Providers.tsx` — global `/me` fetch on mount, so direct navigation to `/kye/<addr>` populates `user` (was empty → isMe local derivation had nothing to compare).
+- `apps/tma/src/lib/api.ts` — `INTERNAL_AUTH_MESSAGES` deny-list, so raw 'missing initData' never leaks to UI. 401/403 always returns the localized Telegram-hint string.
+- `apps/tma/src/app/join/[address]/page.tsx` — 'telegram' step modal added; when initData missing, user gets an "Open in Telegram" CTA instead of falling into a 401 chain.
+- `apps/tma/src/app/kye/[address]/page.tsx` — `me` derivation falls back to `user && m.userId === user.id` comparison since GET /kyes/:id is public.
+
+### New regression specs
+
+- `e2e/regress-isme-derivation.spec.ts` — pins the local userId fallback + global /me fetch.
+- `e2e/regress-friendly-errors.spec.ts` — updated to assert INTERNAL_AUTH_MESSAGES deny-list, dropped stale 'session expired' string.
+
+### Test totals (chromium-desktop, qa:e2e:full)
+
+37 passed, 1 conditionally skipped (integration test waiting for a 'created'-status kye in DB).
+Up from 29-spec baseline.
+
+### Known limitations still open
+
+- Backend prod build (`pnpm --filter backend build && node dist/index.js`) now passes locally cold — F-101 was a transient dep alignment issue, resolved by clean install.
+- TonConnect signTransaction still requires a real wallet bridge; mock harness only handles connection state.
+- TMA lint deferred (F-102) — flat-config migration still a separate PR.

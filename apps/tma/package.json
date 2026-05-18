@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev -p 3000",
-    "build": "next build",
+    "build": "pnpm --filter @roosta/shared build && next build",
     "start": "next start -p 3000",
     "lint": "echo 'tma lint deferred — next lint deprecated in Next 16; flat-config migration tracked in docs/qa/QA_REPORT.md' && exit 0",
     "test": "vitest run"

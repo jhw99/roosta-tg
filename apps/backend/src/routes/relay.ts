@@ -22,11 +22,39 @@ import {
 import { fail } from '../lib/errors.js';
 import { logger } from '../lib/logger.js';
 import { readVaultState } from '../lib/vault.js';
-import { sendInternalMessage } from '../scheduler/walletService.js';
+import { sendInternalMessage, getWalletContext } from '../scheduler/walletService.js';
 import { getSupabase } from '../lib/supabase.js';
 import { extractTelegramUser, resolveOrCreateUser } from '../lib/currentUser.js';
 
 export const relay = new Hono();
+
+/**
+ * GET /relay/operator-status — diagnostic for the relayer/faucet wallet.
+ * Returns the backend wallet address + on-chain TON balance, so any
+ * "broadcast failed" / "faucet broadcast failed" failure mode is
+ * immediately attributable. No auth: leaks only operator wallet
+ * address + balance (already public on chain via tonscan).
+ */
+relay.get('/operator-status', async (c) => {
+  try {
+    const ctx = await getWalletContext();
+    const addr = ctx.wallet.address.toString();
+    let balance = 0n;
+    try {
+      balance = await ctx.client.getBalance(ctx.wallet.address);
+    } catch (e) {
+      logger.warn({ err: (e as Error).message }, 'getBalance failed for operator wallet');
+    }
+    return c.json({
+      operatorAddress: addr,
+      balanceNano: balance.toString(),
+      balanceTON: (Number(balance) / 1e9).toFixed(4),
+      lowFunds: balance < 1_000_000_000n, // < 1 TON
+    });
+  } catch (e) {
+    return fail(c, 500, 'operator_init_failed', (e as Error).message);
+  }
+});
 
 // GET /relay/state?vault=<address> — current on-chain vault state. The TMA
 // calls this to learn the seqno it must put in the next intent, and to show
@@ -181,7 +209,22 @@ relay.post('/', async (c) => {
     }
     return c.json({ ok: true, intentSeqno: intentRaw.seqno, walletSeqno: seqno });
   } catch (e) {
-    logger.error({ err: (e as Error).message, vaultAddress: vaultRaw }, 'relay broadcast failed');
-    return fail(c, 502, 'broadcast_failed', 'failed to broadcast the intent');
+    const errMsg = (e as Error).message ?? '';
+    logger.error({ err: errMsg, vaultAddress: vaultRaw }, 'relay broadcast failed');
+    // Distinguish the two common causes for the operator AND give the
+    // user something actionable. The relayer wallet is what pays the gas
+    // for VaultExecute; when it runs dry every relay 502s with a TON
+    // client "insufficient" / "Account is uninitialized" error.
+    const isWalletDry =
+      /insufficient|balance|not enough|423/i.test(errMsg) ||
+      /Account is uninitialized/i.test(errMsg);
+    return fail(
+      c,
+      502,
+      isWalletDry ? 'relayer_dry' : 'broadcast_failed',
+      isWalletDry
+        ? '운영자 relayer 지갑의 testnet TON이 부족합니다. 잠시 후 다시 시도해주세요. (operator: top up WALLET_MNEMONIC wallet via @testgiver_ton_bot)'
+        : `Relay broadcast failed: ${errMsg.slice(0, 160)}`,
+    );
   }
 });

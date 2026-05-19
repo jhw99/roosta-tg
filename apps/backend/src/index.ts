@@ -61,8 +61,14 @@ app.use('/me', serviceMw);
 app.use('/me/notification-settings', serviceMw);
 app.use('/me/*', initDataMiddleware(env.TELEGRAM_BOT_TOKEN));
 app.use('/kyes', initDataMiddleware(env.TELEGRAM_BOT_TOKEN));
+// /relay/operator-status is a public diagnostic endpoint (returns the
+// operator wallet's address + balance, both already public on chain).
+// Everything else under /relay requires initData auth.
 app.use('/relay', initDataMiddleware(env.TELEGRAM_BOT_TOKEN));
-app.use('/relay/*', initDataMiddleware(env.TELEGRAM_BOT_TOKEN));
+app.use('/relay/*', async (c, next) => {
+  if (c.req.path === '/relay/operator-status' && c.req.method === 'GET') return next();
+  return initDataMiddleware(env.TELEGRAM_BOT_TOKEN)(c, next);
+});
 // Circle detail + rounds are PUBLIC reads so an invite link works in a plain
 // browser (no Telegram initData). Every other /kyes/* route — POST join,
 // contribute, cancel, delete, etc. — still requires initData auth.

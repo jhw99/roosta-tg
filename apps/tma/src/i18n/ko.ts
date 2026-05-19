@@ -120,6 +120,10 @@ export const ko: Strings = {
     contributing: '체인 반영 대기 중... (최대 90초)',
     contributeStuck: '납입이 체인에 반영되지 않았어요. Vault 잔액이 그대로면 라운드 번호 또는 vault 주소 불일치일 수 있어요. 새로고침 후 다시 시도하거나 계주에게 문의해주세요.',
     contributePending: '납입 처리 중 (체인 컨펌 대기)',
+    contributeSuccess: '✅ 납입이 체인에 반영됐어요.',
+    contributeSubmittedSoft: 'Vault 잔액이 차감됐고 인덱서 컨펌 대기 중이에요.',
+    contributeFailedInsufficient: (need: string, have: string) =>
+      `Vault 잔액 부족: ${need} USDC 필요, 현재 ${have} USDC. Wallet 페이지에서 충전 후 다시 시도해주세요.`,
     organizerPanel: '계주 결정 패널',
     organizerPanelBody: (policy: string) =>
       `라운드 마감 + 1 라운드 주기가 지난 뒤에도 미납자가 있으면 정책 (${policy}) 에 따라 처리됩니다. 그 전엔 라운드 실행이 잠겨 있어요.`,

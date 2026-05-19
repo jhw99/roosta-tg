@@ -109,6 +109,10 @@ export const en = {
     contributing: 'Awaiting chain confirmation… (up to 90s)',
     contributeStuck: 'Contribution did not settle on chain. Vault balance unchanged — likely a round-number or vault-address mismatch. Refresh and retry, or contact the organizer.',
     contributePending: 'Contribution pending (waiting on chain confirmation)',
+    contributeSuccess: '✅ Contribution settled on chain.',
+    contributeSubmittedSoft: 'Vault balance dropped — waiting on indexer confirmation.',
+    contributeFailedInsufficient: (need: string, have: string) =>
+      `Vault balance too low: need ${need} USDC, have ${have} USDC. Top up on the Wallet page and retry.`,
     organizerPanel: 'Organizer decision panel',
     organizerPanelBody: (policy: string) =>
       `If anyone is still late after the deadline + one full round interval, the policy (${policy}) settles the round. Execution is locked before then.`,

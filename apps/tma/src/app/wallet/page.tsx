@@ -121,12 +121,17 @@ export default function Wallet() {
       setMsg(s.wallet.withdrawDone);
       closeSheet();
       await vault.refresh();
+      // Pull fresh /me so the new server-tracked owner balance shows.
+      try {
+        const data = await api.me();
+        setUser(data.user);
+      } catch { /* non-fatal */ }
     } catch (e) {
       setErr(e instanceof Error ? e.message : s.common.error);
     } finally {
       setBusy(null);
     }
-  }, [vault, amount, withdrawableNano, s]);
+  }, [vault, amount, withdrawableNano, s, setUser]);
 
   const onClaimFaucet = useCallback(async () => {
     setConfirmFaucet(false);
@@ -242,8 +247,40 @@ export default function Wallet() {
           </>
         )}
 
-        {msg && <p className="text-xs text-green-700">{msg}</p>}
-        {err && <p className="text-xs text-red-600">{err}</p>}
+        {msg && (
+          <div
+            role="alert"
+            className="flex items-start gap-2 rounded-xl border border-green-300 bg-green-50 p-3 text-sm text-green-900"
+          >
+            <span>✅</span>
+            <p className="flex-1">{msg}</p>
+            <button
+              type="button"
+              onClick={() => setMsg(null)}
+              className="text-xs opacity-70 hover:opacity-100"
+              aria-label="dismiss"
+            >
+              ✕
+            </button>
+          </div>
+        )}
+        {err && (
+          <div
+            role="alert"
+            className="flex items-start gap-2 rounded-xl border border-red-300 bg-red-50 p-3 text-sm text-red-900"
+          >
+            <span>❌</span>
+            <p className="flex-1">{err}</p>
+            <button
+              type="button"
+              onClick={() => setErr(null)}
+              className="text-xs opacity-70 hover:opacity-100"
+              aria-label="dismiss"
+            >
+              ✕
+            </button>
+          </div>
+        )}
       </section>
 
       {/* Deposit sheet */}

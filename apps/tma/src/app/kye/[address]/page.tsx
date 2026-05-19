@@ -81,47 +81,68 @@ export default function KyeDetail({ params }: { params: Promise<{ address: strin
   // and silently pump vault balance via bounced messages.
   const [submittedAt, setSubmittedAt] = useState<number | null>(null);
   const submittedVaultBalance = useRef<bigint | null>(null);
+  // Explicit transaction outcome surface — 'success' / 'failed' / 'pending'
+  // shown as a banner so the user knows the contribute settled or failed,
+  // instead of just silently going back to the same screen state.
+  const [txOutcome, setTxOutcome] = useState<
+    null | { kind: 'success'; text: string } | { kind: 'failed'; text: string }
+  >(null);
+
   useEffect(() => {
-    // Once the indexer reports 'paid', clear the lock immediately.
+    // Once the indexer reports 'paid' AND we are waiting on a submission,
+    // surface a SUCCESS banner and clear the lock.
     if (myStatus === 'paid' && submittedAt != null) {
       setSubmittedAt(null);
       submittedVaultBalance.current = null;
       setContributing(false);
+      setTxOutcome({ kind: 'success', text: s.kye.contributeSuccess });
     }
-  }, [myStatus, submittedAt]);
+  }, [myStatus, submittedAt, s.kye.contributeSuccess]);
 
   const contribute = useCallback(async () => {
     if (!kye) return;
     if (!vault.ready || !vault.vaultAddress) {
-      setError('Activate your gasless vault first (from the home screen).');
+      setTxOutcome({ kind: 'failed', text: s.vault.notActivated });
+      return;
+    }
+    // Pre-flight: vault must have enough balance for contribution + gas margin.
+    const required = BigInt(kye.params.contribution) + CONTRIBUTE_GAS_MARGIN;
+    const balance = vault.state?.balance ?? 0n;
+    if (balance < required) {
+      setTxOutcome({
+        kind: 'failed',
+        text: s.kye.contributeFailedInsufficient(
+          fmtUSDT(required),
+          fmtUSDT(balance),
+        ),
+      });
       return;
     }
     setContributing(true);
     setError(null);
-    submittedVaultBalance.current = vault.state?.balance ?? null;
+    setTxOutcome(null);
+    submittedVaultBalance.current = balance;
     setSubmittedAt(Date.now());
     try {
-      const amount = BigInt(kye.params.contribution) + CONTRIBUTE_GAS_MARGIN;
       await signAndRelay({
         vaultAddress: vault.vaultAddress,
         target: Address.parse(kye.contractAddress),
-        amount,
+        amount: required,
         body: buildContributeBody(kye.currentRound),
       });
-      // Note: do NOT setContributing(false) here. The button stays locked
-      // until the indexer confirms (myStatus = 'paid') OR the timeout
-      // fallback in the watchdog effect below releases it. This prevents
-      // bounce-loop pumping when the contract rejects.
+      // Broadcast OK — outcome resolves via myStatus watcher OR watchdog.
     } catch (e) {
-      setError(e instanceof Error ? e.message : s.common.error);
+      const msg = e instanceof Error ? e.message : s.common.error;
+      setError(msg);
+      setTxOutcome({ kind: 'failed', text: msg });
       setContributing(false);
       setSubmittedAt(null);
     }
-  }, [kye, vault.ready, vault.vaultAddress, vault.state, s.common.error]);
+  }, [kye, vault.ready, vault.vaultAddress, vault.state, s.common.error, s.kye.contributeFailedInsufficient, s.vault.notActivated]);
 
   // Watchdog: after 90s with no indexer flip to 'paid', release the lock
-  // but show a clear warning that the contribute may have been bounced
-  // (vault address mismatch, wrong round, etc.).
+  // AND show a failed-banner if the vault balance never decreased
+  // (= the contract rejected the contribute / bounced).
   useEffect(() => {
     if (!submittedAt) return;
     const handle = setTimeout(() => {
@@ -129,17 +150,18 @@ export default function KyeDetail({ params }: { params: Promise<{ address: strin
       const balanceBefore = submittedVaultBalance.current ?? balanceNow;
       const decreased = balanceNow < balanceBefore;
       if (!decreased) {
-        setError(
-          s.kye.contributeStuck ??
-            'Contribution may not have settled — vault balance unchanged. Check round number / vault membership before retrying.',
-        );
+        setTxOutcome({ kind: 'failed', text: s.kye.contributeStuck });
+      } else {
+        // Decreased but indexer hasn't flipped status — likely settled,
+        // surface a soft "submitted" success instead of leaving silent.
+        setTxOutcome({ kind: 'success', text: s.kye.contributeSubmittedSoft });
       }
       setSubmittedAt(null);
       submittedVaultBalance.current = null;
       setContributing(false);
     }, 90_000);
     return () => clearTimeout(handle);
-  }, [submittedAt, vault.state, s.kye.contributeStuck]);
+  }, [submittedAt, vault.state, s.kye.contributeStuck, s.kye.contributeSubmittedSoft]);
 
   const isOrganizer = !!(user && kye && user.id === kye.organizerId);
   const canDelete = !!(isOrganizer && kye && kye.status === 'created');
@@ -327,6 +349,32 @@ export default function KyeDetail({ params }: { params: Promise<{ address: strin
           />
         </div>
       </section>
+
+      {/* Transaction outcome banner — explicit success/failed feedback
+          after every contribute attempt. Dismissable. */}
+      {txOutcome && (
+        <section className="px-4 pb-2">
+          <div
+            role="alert"
+            className={
+              txOutcome.kind === 'success'
+                ? 'flex items-start gap-2 rounded-xl border border-green-300 bg-green-50 p-3 text-sm text-green-900'
+                : 'flex items-start gap-2 rounded-xl border border-red-300 bg-red-50 p-3 text-sm text-red-900'
+            }
+          >
+            <span>{txOutcome.kind === 'success' ? '✅' : '❌'}</span>
+            <p className="flex-1">{txOutcome.text}</p>
+            <button
+              type="button"
+              onClick={() => setTxOutcome(null)}
+              className="text-xs opacity-70 hover:opacity-100"
+              aria-label="dismiss"
+            >
+              ✕
+            </button>
+          </div>
+        </section>
+      )}
 
       {me && kye.status === 'active' && (() => {
         // Intuitive role panel: show explicitly what the user is expected

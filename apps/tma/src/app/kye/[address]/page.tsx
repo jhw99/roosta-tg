@@ -1,12 +1,13 @@
 'use client';
 
-import { use, useCallback, useEffect, useState } from 'react';
+import { use, useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Address, toNano } from '@ton/core';
 import {
   buildContributeBody,
   buildEmergencyCancelBody,
+  buildExecuteRoundBody,
 } from '@roosta/shared/contractMessages';
 import { PageHeader } from '../../../components/PageHeader';
 import { StatusBadge } from '../../../components/StatusBadge';
@@ -69,6 +70,25 @@ export default function KyeDetail({ params }: { params: Promise<{ address: strin
   const me = members.find((m) => m.isMe || (user && m.userId === user.id)) ?? null;
   const myStatus = me?.currentRoundStatus ?? 'pending';
 
+  // Hard lock: once a contribution is broadcast we DO NOT re-enable the
+  // button until either (a) the indexer has flipped myStatus to 'paid' OR
+  // (b) a 90s indexer-confirmation window has expired AND the vault
+  // balance has visibly decreased (proving the contract accepted the
+  // contribute, not a bounce-refund). The prior version flipped
+  // `contributing` back to false as soon as the relay promise resolved —
+  // which let users hammer the button while waiting for chain confirmation
+  // and silently pump vault balance via bounced messages.
+  const [submittedAt, setSubmittedAt] = useState<number | null>(null);
+  const submittedVaultBalance = useRef<bigint | null>(null);
+  useEffect(() => {
+    // Once the indexer reports 'paid', clear the lock immediately.
+    if (myStatus === 'paid' && submittedAt != null) {
+      setSubmittedAt(null);
+      submittedVaultBalance.current = null;
+      setContributing(false);
+    }
+  }, [myStatus, submittedAt]);
+
   const contribute = useCallback(async () => {
     if (!kye) return;
     if (!vault.ready || !vault.vaultAddress) {
@@ -77,9 +97,9 @@ export default function KyeDetail({ params }: { params: Promise<{ address: strin
     }
     setContributing(true);
     setError(null);
+    submittedVaultBalance.current = vault.state?.balance ?? null;
+    setSubmittedAt(Date.now());
     try {
-      // The vault forwards the contribution amount itself; the relayer covers
-      // gas. The contract refunds any excess back to the vault.
       const amount = BigInt(kye.params.contribution) + CONTRIBUTE_GAS_MARGIN;
       await signAndRelay({
         vaultAddress: vault.vaultAddress,
@@ -87,12 +107,38 @@ export default function KyeDetail({ params }: { params: Promise<{ address: strin
         amount,
         body: buildContributeBody(kye.currentRound),
       });
+      // Note: do NOT setContributing(false) here. The button stays locked
+      // until the indexer confirms (myStatus = 'paid') OR the timeout
+      // fallback in the watchdog effect below releases it. This prevents
+      // bounce-loop pumping when the contract rejects.
     } catch (e) {
       setError(e instanceof Error ? e.message : s.common.error);
-    } finally {
       setContributing(false);
+      setSubmittedAt(null);
     }
-  }, [kye, vault.ready, vault.vaultAddress, s.common.error]);
+  }, [kye, vault.ready, vault.vaultAddress, vault.state, s.common.error]);
+
+  // Watchdog: after 90s with no indexer flip to 'paid', release the lock
+  // but show a clear warning that the contribute may have been bounced
+  // (vault address mismatch, wrong round, etc.).
+  useEffect(() => {
+    if (!submittedAt) return;
+    const handle = setTimeout(() => {
+      const balanceNow = vault.state?.balance ?? 0n;
+      const balanceBefore = submittedVaultBalance.current ?? balanceNow;
+      const decreased = balanceNow < balanceBefore;
+      if (!decreased) {
+        setError(
+          s.kye.contributeStuck ??
+            'Contribution may not have settled — vault balance unchanged. Check round number / vault membership before retrying.',
+        );
+      }
+      setSubmittedAt(null);
+      submittedVaultBalance.current = null;
+      setContributing(false);
+    }, 90_000);
+    return () => clearTimeout(handle);
+  }, [submittedAt, vault.state, s.kye.contributeStuck]);
 
   const isOrganizer = !!(user && kye && user.id === kye.organizerId);
   const canDelete = !!(isOrganizer && kye && kye.status === 'created');
@@ -131,6 +177,41 @@ export default function KyeDetail({ params }: { params: Promise<{ address: strin
       setDeleting(false);
     }
   }, [kye, vault.vaultAddress, router, s.common.error, s.vault.notActivated, s.kye.deleteSubmittedNotice]);
+
+  // Organizer manually triggers the round execution. This is the
+  // "decide now" lever: organizer can wait (do nothing), execute the
+  // round with the current default policy (whatever it was set to at
+  // creation — pro_rata / cancel / organizer_cover) by clicking this,
+  // or just cancel the whole circle via the existing delete-button
+  // path (works even after status='active' if the organizer chose so
+  // when creating — current contract restricts EmergencyCancel to
+  // status='created' though, see kye.tact).
+  //
+  // The contract enforces grace_window (5 min after eligibleAt) before
+  // it accepts ExecuteRound when there are missing contributions, so
+  // the click is safe to make any time after deadline + 5 min.
+  const [executingRound, setExecutingRound] = useState(false);
+  const executeRound = useCallback(async () => {
+    if (!kye) return;
+    if (!vault.ready || !vault.vaultAddress) {
+      setError(s.vault.notActivated);
+      return;
+    }
+    setExecutingRound(true);
+    setError(null);
+    try {
+      await signAndRelay({
+        vaultAddress: vault.vaultAddress,
+        target: Address.parse(kye.contractAddress),
+        amount: CANCEL_FORWARD_TON, // gas-only forward; payouts come from contract pool
+        body: buildExecuteRoundBody(0),
+      });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : s.common.error);
+    } finally {
+      setExecutingRound(false);
+    }
+  }, [kye, vault.ready, vault.vaultAddress, s.common.error, s.vault.notActivated]);
 
   const share = useCallback(() => {
     if (!kye) return;
@@ -264,16 +345,55 @@ export default function KyeDetail({ params }: { params: Promise<{ address: strin
               </span>
             </p>
             {myStatus !== 'paid' && (
-              <button
-                type="button"
-                onClick={() => void contribute()}
-                disabled={contributing}
-                className="mt-2 w-full rounded-xl bg-[var(--color-primary)] py-2 text-sm font-medium text-white disabled:opacity-60"
-              >
-                {contributing ? s.kye.contributing : s.kye.contributeNow} ·{' '}
-                {fmtUSDT(BigInt(kye.params.contribution))} USDC
-              </button>
+              <>
+                <button
+                  type="button"
+                  onClick={() => void contribute()}
+                  disabled={contributing || submittedAt != null}
+                  className="mt-2 w-full rounded-xl bg-[var(--color-primary)] py-2 text-sm font-medium text-white disabled:opacity-60"
+                >
+                  {contributing || submittedAt != null
+                    ? s.kye.contributing
+                    : s.kye.contributeNow}
+                </button>
+                {submittedAt != null && (
+                  <p className="mt-1 text-xs opacity-60 text-center">
+                    {s.kye.contributePending}
+                  </p>
+                )}
+              </>
             )}
+          </div>
+        </section>
+      )}
+
+      {/* Organizer decision panel — visible only to the organizer on an
+          active circle. Shows the current default policy + an explicit
+          "Execute round" CTA so the organizer can decide WHEN to settle
+          (instead of the scheduler firing silently). Cancel still routes
+          through the existing delete-circle button (which is itself
+          gated on status='created' by the contract). */}
+      {isOrganizer && kye.status === 'active' && (
+        <section className="px-4 pb-2">
+          <div className="rounded-2xl border-2 border-amber-200 bg-amber-50 p-3">
+            <p className="text-sm font-semibold text-amber-900">{s.kye.organizerPanel}</p>
+            <p className="mt-1 text-xs text-amber-800">
+              {s.kye.organizerPanelBody(
+                kye.params.defaultPolicy === 'pro_rata'
+                  ? s.create.policyProRata
+                  : kye.params.defaultPolicy === 'cancel'
+                    ? s.create.policyCancel
+                    : s.create.policyOrganizerCover,
+              )}
+            </p>
+            <button
+              type="button"
+              onClick={() => void executeRound()}
+              disabled={executingRound}
+              className="mt-2 w-full rounded-xl bg-amber-600 py-2 text-sm font-medium text-white disabled:opacity-60"
+            >
+              {executingRound ? s.kye.executingRound : s.kye.executeRound}
+            </button>
           </div>
         </section>
       )}

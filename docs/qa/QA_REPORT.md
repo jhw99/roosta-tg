@@ -215,3 +215,39 @@ User found three live-test issues on the deployed TMA:
 
 - M-1: 컨트랙트 redeploy 시 `members` 를 wallet 기준으로 변경 + vault 의 plain `receive()` 가 known-kye bounce 를 거부
 - M-2: 동일 wallet 멀티-TG 사용 방지 (1 wallet = 1 TG user invariant) 또는 vault snapshot
+
+---
+
+## Sweep #4 (2026-05-19) — exhaustive user-pattern matrix
+
+Per user "여러 새로운 사용패턴들을 전부 나올 수 있는 것들을 가정하고 테스트". Built a 10-category matrix (USER_PATTERN_MATRIX.md) with 50+ scenarios, classified as automated (A) / partial (P) / manual (M).
+
+### Specs added (5 new files, 16 new test cases)
+
+| Spec | Coverage |
+|---|---|
+| `regress-initdata-tamper` | I-03/I-04: missing hash → 401, tampered hash → 401, expired 25h → 401, valid → not-401 |
+| `regress-network-resilience` | N-01/N-03: 404 / forced 5xx / forced 429 — no raw English/HTTP text leaks to UI |
+| `regress-rapid-clicks` | R-01/R-02: double-click on Join doesn't stack modals |
+| `regress-create-form-fuzz` | E-01~05: form renders, empty submit gated, contribution=0 rejected |
+| `regress-multi-account-vault` | W-02: 1 wallet × N TG users produces distinct vault PDAs (data invariant test for the bounce-pump root cause) |
+
+### Total e2e (chromium-desktop): **57 passed / 0 failed / 1 conditional skip**
+
+up from sweep #3 baseline.
+
+### Fixed during sweep
+
+- regex too strict in regress-contribute-lock watchdog assertion (90_000 lookup, multi-line setTimeout).
+- regress-network-resilience used strict-page which would itself fail on the intentionally-injected 5xx/429 — switched to base page + per-test withInitData helper.
+- regress-create-form-fuzz: empty-name gating now accepts "stays on /create" as a valid gate (in addition to disabled / visible hint).
+
+### Manual checklist (자동화 불가)
+
+다음 시나리오는 수동 확인 필요 (USER_PATTERN_MATRIX.md M-항목 참조):
+- W-03 wallet swap mid-life
+- V-02 vault re-activation 충돌
+- V-05 외부 top-up
+- C-08 실제 ExecuteRound 트리거 (testnet 라운드 마감 시각 필요)
+- C-09 active 후 cancel (컨트랙트 변경 필요)
+- R-04 ExecuteRound 다중 broadcast race

@@ -143,6 +143,7 @@ me.get('/', async (c) => {
       sessionPubkey: user.session_pubkey,
       faucetClaimedAt: user.faucet_claimed_at,
       testUsdcBalance: user.test_usdc_balance,
+      testUsdcVaultBalance: user.test_usdc_vault_balance,
     },
     kyes,
   });
@@ -312,14 +313,24 @@ me.post('/balance/deposit', async (c) => {
   if (!user) return fail(c, 500, 'user_upsert', 'Could not create user row');
 
   const amount = BigInt(parsed.data.amount);
-  const current = BigInt(user.test_usdc_balance);
-  const next = current > amount ? current - amount : 0n;
+  const currentOwner = BigInt(user.test_usdc_balance);
+  const currentVault = BigInt(user.test_usdc_vault_balance);
+  const nextOwner = currentOwner > amount ? currentOwner - amount : 0n;
+  // A "deposit" moves USDC from owner wallet → vault, so vault gains.
+  const nextVault = currentVault + amount;
   const { error } = await sb
     .from('users')
-    .update({ test_usdc_balance: next.toString() })
+    .update({
+      test_usdc_balance: nextOwner.toString(),
+      test_usdc_vault_balance: nextVault.toString(),
+    })
     .eq('id', user.id);
   if (error) return fail(c, 500, 'db_error', error.message);
-  return c.json({ ok: true, testUsdcBalance: next.toString() });
+  return c.json({
+    ok: true,
+    testUsdcBalance: nextOwner.toString(),
+    testUsdcVaultBalance: nextVault.toString(),
+  });
 });
 
 const NotificationSettingsBody = z.object({

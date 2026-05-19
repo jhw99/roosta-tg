@@ -331,6 +331,28 @@ export class EventIndexer {
       case 'KyeCancelled':
         if (kyeId) await sb.from('kyes').update({ status: 'cancelled' }).eq('id', kyeId);
         break;
+      case 'PayoutSent': {
+        // Credit the winner's server-tracked vault balance. The winner
+        // field is a vault address (gasless proxy model); find the user
+        // who owns that vault and += amount onto test_usdc_vault_balance.
+        // This is the inflow side of the vault ledger; outflows are
+        // debited in /relay.
+        const winnerAddr = p.winner as string;
+        const amount = BigInt(p.amount as string | number);
+        const { data: winnerUser } = await sb
+          .from('users')
+          .select('id, test_usdc_vault_balance')
+          .eq('vault_address', winnerAddr)
+          .maybeSingle();
+        if (winnerUser?.id) {
+          const current = BigInt((winnerUser.test_usdc_vault_balance as string | null) ?? '0');
+          await sb
+            .from('users')
+            .update({ test_usdc_vault_balance: (current + amount).toString() })
+            .eq('id', winnerUser.id);
+        }
+        break;
+      }
       default:
         break;
     }

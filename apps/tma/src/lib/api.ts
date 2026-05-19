@@ -144,6 +144,10 @@ export const userSchema = z.object({
   // Server-tracked test USDC balance in nano units (testnet). Displayed as
   // USDC at 6 dec. Real on-chain TON in the wallet is ignored on purpose.
   testUsdcBalance: z.string().optional(),
+  // Server-tracked test USDC balance held by the user's vault (server
+  // ledger keyed off relay outflows + indexer PayoutSent inflows).
+  // Replaces the on-chain TON balance display on /wallet — see 0007.
+  testUsdcVaultBalance: z.string().optional(),
 });
 export type ApiUser = z.infer<typeof userSchema>;
 
@@ -300,7 +304,11 @@ export const api = {
   notifyDeposit: async (amount: bigint) =>
     apiRequest(
       '/me/balance/deposit',
-      z.object({ ok: z.boolean(), testUsdcBalance: z.string() }),
+      z.object({
+        ok: z.boolean(),
+        testUsdcBalance: z.string(),
+        testUsdcVaultBalance: z.string().optional(),
+      }),
       { method: 'POST', body: { amount: amount.toString() } },
     ),
 

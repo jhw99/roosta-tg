@@ -32,6 +32,8 @@ export interface AppUser {
   faucet_claimed_at: string | null;
   /** Nano-TON credited by us (testnet faucet). Displayed as USDC at 6 dec. */
   test_usdc_balance: string;
+  /** Server-tracked vault USDC balance — see 0007 migration. */
+  test_usdc_vault_balance: string;
 }
 
 /** Find-or-create the users row for a Telegram user. */
@@ -42,7 +44,7 @@ export async function resolveOrCreateUser(
   const language = (tg.language_code ?? 'en').startsWith('ko') ? 'ko' : 'en';
   const { data: existing } = await supabase
     .from('users')
-    .select('id, telegram_id, wallet_address, language, vault_address, session_pubkey, faucet_claimed_at, test_usdc_balance')
+    .select('id, telegram_id, wallet_address, language, vault_address, session_pubkey, faucet_claimed_at, test_usdc_balance, test_usdc_vault_balance')
     .eq('telegram_id', tg.id)
     .maybeSingle();
   if (existing) {
@@ -55,12 +57,15 @@ export async function resolveOrCreateUser(
       session_pubkey: (existing.session_pubkey as string) ?? null,
       faucet_claimed_at: (existing.faucet_claimed_at as string) ?? null,
       test_usdc_balance: String((existing.test_usdc_balance as string | number | null) ?? '0'),
+      test_usdc_vault_balance: String(
+        (existing.test_usdc_vault_balance as string | number | null) ?? '0',
+      ),
     };
   }
   const { data: inserted, error } = await supabase
     .from('users')
     .insert({ telegram_id: tg.id, language })
-    .select('id, telegram_id, wallet_address, language, vault_address, session_pubkey, faucet_claimed_at, test_usdc_balance')
+    .select('id, telegram_id, wallet_address, language, vault_address, session_pubkey, faucet_claimed_at, test_usdc_balance, test_usdc_vault_balance')
     .maybeSingle();
   if (error || !inserted) return null;
   return {
@@ -72,5 +77,8 @@ export async function resolveOrCreateUser(
     session_pubkey: (inserted.session_pubkey as string) ?? null,
     faucet_claimed_at: (inserted.faucet_claimed_at as string) ?? null,
     test_usdc_balance: String((inserted.test_usdc_balance as string | number | null) ?? '0'),
+    test_usdc_vault_balance: String(
+      (inserted.test_usdc_vault_balance as string | number | null) ?? '0',
+    ),
   };
 }

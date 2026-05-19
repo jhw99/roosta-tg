@@ -50,8 +50,27 @@ export default function Wallet() {
     ? BigInt(user.testUsdcBalance)
     : null;
 
-  const vaultBalance = vault.state?.balance ?? 0n;
-  const withdrawableNano = vaultBalance > VAULT_MIN_GAS ? vaultBalance - VAULT_MIN_GAS : 0n;
+  // Server-tracked vault balance (test USDC). On testnet this is the
+  // source of truth — the vault contract's raw TON balance is polluted by
+  // bounced messages, relayer-gas residuals, and external transfers, so
+  // we don't show that. The server keeps the ledger via /me/balance/
+  // deposit (top-up), /relay (every outflow), and indexer PayoutSent
+  // (inflow). See 0007 migration + sweep #7 commit message.
+  const vaultBalanceServer: bigint | null = user?.testUsdcVaultBalance != null
+    ? BigInt(user.testUsdcVaultBalance)
+    : null;
+  // For the withdraw flow we still need to know the on-chain TON balance
+  // (otherwise the vault could be empty even when the ledger says
+  // otherwise — e.g. server fell out of sync). The withdraw form gates on
+  // the LESSER of (server-tracked, on-chain - gas reserve).
+  const vaultBalanceChain = vault.state?.balance ?? 0n;
+  const vaultBalance = vaultBalanceServer ?? vaultBalanceChain;
+  const withdrawableChain =
+    vaultBalanceChain > VAULT_MIN_GAS ? vaultBalanceChain - VAULT_MIN_GAS : 0n;
+  const withdrawableNano =
+    vaultBalanceServer != null && vaultBalanceServer < withdrawableChain
+      ? vaultBalanceServer
+      : withdrawableChain;
   const faucetClaimed = !!user?.faucetClaimedAt;
 
   const closeSheet = () => { setSheet(null); setAmount(''); setErr(null); setMsg(null); };
@@ -66,7 +85,13 @@ export default function Wallet() {
       const nano = usdcToNano(amount);
       try {
         const res = await api.notifyDeposit(nano);
-        if (user) setUser({ ...user, testUsdcBalance: res.testUsdcBalance });
+        if (user) {
+          setUser({
+            ...user,
+            testUsdcBalance: res.testUsdcBalance,
+            testUsdcVaultBalance: res.testUsdcVaultBalance ?? user.testUsdcVaultBalance,
+          });
+        }
       } catch { /* non-fatal: chain truth still wins */ }
       setMsg(s.wallet.depositDone);
       closeSheet();

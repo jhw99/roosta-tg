@@ -147,24 +147,37 @@ relay.post('/', async (c) => {
       { vaultAddress: vaultRaw, intentSeqno: intent.seqno.toString(), walletSeqno: seqno },
       'relayed vault intent',
     );
-    // If the intent forwards funds to the user's own wallet (= withdraw),
-    // credit the server-tracked test USDC balance so the wallet UI reflects
-    // the new balance without waiting on chain observation.
+    // Server-tracked balance updates. EVERY successful relay outflow
+    // debits the vault by intent.amount. If the target is the user's own
+    // wallet, we ALSO credit the owner — this is the withdraw path. For
+    // contribute / join intents the target is the kye contract and the
+    // tokens are conceptually "moved to the pool" — vault decrements,
+    // no owner credit. Inflow (payouts) is handled by the indexer.
     try {
       const sb = getSupabase();
       const tg = extractTelegramUser(c);
       if (sb && tg) {
         const user = await resolveOrCreateUser(sb, tg);
-        if (user?.wallet_address) {
-          const targetEq = Address.parse(user.wallet_address).equals(target);
-          if (targetEq) {
-            const newBalance = (BigInt(user.test_usdc_balance) + intent.amount).toString();
-            await sb.from('users').update({ test_usdc_balance: newBalance }).eq('id', user.id);
+        if (user) {
+          const currentVault = BigInt(user.test_usdc_vault_balance);
+          const debit = intent.amount > currentVault ? currentVault : intent.amount;
+          const newVault = currentVault - debit;
+          const update: Record<string, string> = {
+            test_usdc_vault_balance: newVault.toString(),
+          };
+          if (user.wallet_address) {
+            const isWithdrawToOwner = Address.parse(user.wallet_address).equals(target);
+            if (isWithdrawToOwner) {
+              update.test_usdc_balance = (
+                BigInt(user.test_usdc_balance) + intent.amount
+              ).toString();
+            }
           }
+          await sb.from('users').update(update).eq('id', user.id);
         }
       }
     } catch (e) {
-      logger.warn({ err: (e as Error).message }, 'withdraw balance credit failed (non-fatal)');
+      logger.warn({ err: (e as Error).message }, 'relay balance update failed (non-fatal)');
     }
     return c.json({ ok: true, intentSeqno: intentRaw.seqno, walletSeqno: seqno });
   } catch (e) {

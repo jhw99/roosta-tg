@@ -180,3 +180,38 @@ Up from 29-spec baseline.
 - Backend prod build (`pnpm --filter backend build && node dist/index.js`) now passes locally cold — F-101 was a transient dep alignment issue, resolved by clean install.
 - TonConnect signTransaction still requires a real wallet bridge; mock harness only handles connection state.
 - TMA lint deferred (F-102) — flat-config migration still a separate PR.
+
+---
+
+## Sweep #3 (2026-05-19) — contribute lock + organizer panel + UI clarity
+
+User found three live-test issues on the deployed TMA:
+
+| Issue | Impact | Fix shipped (commit 95afe17) | Root fix outstanding |
+|---|---|---|---|
+| "Contribute" 클릭 시 vault 잔액이 **증가** | 무한 잔액 펌프 | UI lock (submittedAt + 90s watchdog + balance-drop check) | 컨트랙트 재배포 필요 — vault.receive() 가 KyeContract 에서 bounce 된 TON 도 "funding" 으로 받아들임. mainnet 전 `sender() == knownKye` 가드 필수. |
+| 버튼이 클릭 후에도 활성 | 위 버그 증폭 | 같은 lock 으로 해결 — myStatus='paid' 또는 watchdog 만 lock 해제 | n/a |
+| Wallet UI 가 "TON wallet" 으로 표기 | 사용자 혼란 | 라벨을 "Your wallet (Test USDC)" / "내 지갑 (테스트 USDC)" 으로 변경 + mainnet 전환 안내 | n/a (mainnet 에선 jetton wallet 잔액 직접 조회 필요) |
+| 디폴트 처리가 자동으로 (조용히) | 계주 판단 불가 | `Execute round` 패널 추가 — isOrganizer + status=active 일 때 현재 default policy 와 함께 명시적 트리거 버튼 노출 | 정책 자체 변경은 컨트랙트 immutable. 마이너 변경: 계주가 EmergencyCancel / ExecuteRound 중 선택 가능. |
+
+### Vault address mismatch — known mainnet blocker
+
+같은 wallet 으로 두 TG 계정이 vault 활성화하면 각각 다른 vault PDA 가 생성됩니다. 컨트랙트의 members map 은 join 시점의 vault 만 알고 있어서, 추후 vault 가 바뀐 사용자가 signAndRelay → `orderOfSender()=0` → "not a member" require 실패 → bounce.
+
+현재 mitigations:
+- UI lock 으로 사용자가 자기 vault 를 잃지 않게 함 (잔액은 그대로지만 진짜 contribute 는 못 함)
+- 90s 후 contributeStuck 토스트로 명확히 안내
+
+근본 fix (mainnet 전 필수):
+1. 컨트랙트 `members` 를 wallet_address 기준으로 변경 (vault 는 동작용 proxy)
+2. 또는 indexer 가 join 시점 vault address 를 snapshot 으로 저장 + UI 가 비교
+
+### Regression specs added
+
+- `e2e/regress-contribute-lock.spec.ts` (4 cases: submittedAt gate, watchdog, paid clears lock, unambiguous label)
+- `e2e/regress-organizer-decision.spec.ts` (3 cases: executeRound wired, panel gating, policy display)
+
+### Mainnet checklist 추가 (M-1, M-2)
+
+- M-1: 컨트랙트 redeploy 시 `members` 를 wallet 기준으로 변경 + vault 의 plain `receive()` 가 known-kye bounce 를 거부
+- M-2: 동일 wallet 멀티-TG 사용 방지 (1 wallet = 1 TG user invariant) 또는 vault snapshot

@@ -257,25 +257,25 @@ me.post('/faucet', async (c) => {
   if (!user.wallet_address) {
     return fail(c, 409, 'no_wallet', 'Connect a TON wallet before claiming the faucet');
   }
-  if (user.faucet_claimed_at) {
-    return fail(c, 409, 'already_claimed', 'Testnet faucet already claimed');
-  }
-
-  // Mark first so two parallel requests can't double-claim.
-  const { error: markErr } = await sb
-    .from('users')
-    .update({ faucet_claimed_at: new Date().toISOString() })
-    .eq('id', user.id)
-    .is('faucet_claimed_at', null);
-  if (markErr) return fail(c, 500, 'db_error', markErr.message);
+  // Per product direction (2026-05-19): testnet faucet is UNLIMITED.
+  // Users can claim 1000 USDC any time. We still stamp faucet_claimed_at
+  // for accounting (auto-onboarding in /join uses it to skip the auto-
+  // claim once the user has claimed at least once), but it no longer
+  // blocks re-claims.
 
   try {
     await sendPlainTon(user.wallet_address, FAUCET_AMOUNT);
   } catch (e) {
     logger.error({ err: (e as Error).message, user: user.id }, 'faucet broadcast failed');
-    // Roll back the claim so the user can retry.
-    await sb.from('users').update({ faucet_claimed_at: null }).eq('id', user.id);
     return fail(c, 502, 'broadcast_failed', 'Faucet broadcast failed; try again');
+  }
+  // Record claim time (idempotent — we keep the FIRST claim time so the
+  // join-onboarding can detect "ever claimed" cheaply).
+  if (!user.faucet_claimed_at) {
+    await sb
+      .from('users')
+      .update({ faucet_claimed_at: new Date().toISOString() })
+      .eq('id', user.id);
   }
   // Credit the server-tracked test USDC balance so the wallet UI shows only
   // what we issued (not external testnet TON the user may have grabbed from

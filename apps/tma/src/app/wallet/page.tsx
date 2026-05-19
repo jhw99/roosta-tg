@@ -210,18 +210,26 @@ export default function Wallet() {
               </button>
             </div>
 
-            {/* Testnet faucet */}
+            {/* Testnet faucet — unlimited per product direction. The
+                `faucetClaimed` state is no longer used to gate the button;
+                we keep the field on /me only for "ever claimed" telemetry
+                used by the join-onboarding auto-claim path. */}
             <div className="rounded-2xl border border-dashed border-black/15 p-4 text-sm">
               <p className="font-medium">{s.wallet.faucetTitle}</p>
               <p className="mt-1 text-xs opacity-60">{s.wallet.faucetBody}</p>
               <button
                 type="button"
                 onClick={() => setConfirmFaucet(true)}
-                disabled={faucetClaimed || busy === 'faucet'}
+                disabled={busy === 'faucet'}
                 className="mt-3 w-full rounded-xl bg-amber-500 py-2 text-sm font-medium text-white disabled:opacity-40"
               >
-                {faucetClaimed ? s.wallet.faucetClaimed : s.wallet.faucetClaim}
+                {s.wallet.faucetClaim}
               </button>
+              {faucetClaimed && (
+                <p className="mt-1 text-[10px] text-center opacity-50">
+                  {s.wallet.faucetUnlimitedNote}
+                </p>
+              )}
             </div>
 
             <button

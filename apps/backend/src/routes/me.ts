@@ -266,8 +266,22 @@ me.post('/faucet', async (c) => {
   try {
     await sendPlainTon(user.wallet_address, FAUCET_AMOUNT);
   } catch (e) {
-    logger.error({ err: (e as Error).message, user: user.id }, 'faucet broadcast failed');
-    return fail(c, 502, 'broadcast_failed', 'Faucet broadcast failed; try again');
+    const errMsg = (e as Error).message ?? '';
+    logger.error({ err: errMsg, user: user.id }, 'faucet broadcast failed');
+    // Surface the likely root cause to the user. The backend wallet
+    // (WALLET_MNEMONIC) is what funds the faucet — when it runs out of
+    // testnet TON, every claim fails until an operator tops it up.
+    const isInsufficient =
+      /insufficient|balance|not enough|423/i.test(errMsg) ||
+      /Account is uninitialized/i.test(errMsg);
+    return fail(
+      c,
+      502,
+      isInsufficient ? 'faucet_dry' : 'broadcast_failed',
+      isInsufficient
+        ? '운영자 faucet 지갑의 testnet TON이 소진됐어요. 잠시 후 다시 시도해주세요. (operator: top up WALLET_MNEMONIC wallet via @testgiver_ton_bot)'
+        : `Faucet broadcast failed: ${errMsg.slice(0, 120)}`,
+    );
   }
   // Record claim time (idempotent — we keep the FIRST claim time so the
   // join-onboarding can detect "ever claimed" cheaply).

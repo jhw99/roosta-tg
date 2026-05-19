@@ -22,13 +22,15 @@ test.describe('regress-faucet-unlimited — source contract', () => {
     expect(src).not.toMatch(/'already_claimed'/);
   });
 
-  test('backend still tries to send TON + still credits test_usdc_balance', () => {
+  test('backend still tries to send TON + credits the server-tracked balance', () => {
     const src = fs.readFileSync(ME, 'utf8');
-    // The faucet must still actually send (otherwise it's a no-op).
-    expect(src).toMatch(/sendPlainTon\(user\.wallet_address,\s*FAUCET_AMOUNT\)/);
-    // And still bump test_usdc_balance so the server-tracked balance grows
-    // by 1000 USDC per claim.
-    expect(src).toMatch(/test_usdc_balance:\s*newBalance/);
+    // The faucet must still actually send TON. After sweep #10 the
+    // destination switched from owner wallet → vault, but it MUST still
+    // call sendPlainTon to one of the two.
+    expect(src).toMatch(/sendPlainTon\(user\.(wallet_address|vault_address),\s*FAUCET_AMOUNT\)/);
+    // And still bump a server-tracked balance (either test_usdc_balance
+    // for the legacy path or test_usdc_vault_balance for the new path).
+    expect(src).toMatch(/test_usdc(?:_vault)?_balance:/);
   });
 
   test('first claim time is recorded only once (telemetry, not a gate)', () => {

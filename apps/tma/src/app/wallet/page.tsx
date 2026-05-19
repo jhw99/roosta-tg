@@ -157,23 +157,14 @@ export default function Wallet() {
     <main>
       <PageHeader title={s.wallet.title} subtitle={s.wallet.subtitle} />
       <section className="p-4 space-y-4">
-        {/* Owner wallet — TEST USDC only, never TON. The connected wallet
-            address is shown by TonConnectButton; the balance below is the
-            server-tracked test-USDC credit, NOT the on-chain raw TON. */}
+        {/* TonConnect connection only. Owner wallet balance is intentionally
+            NOT shown here — per product direction (2026-05-19), the wallet
+            page surfaces only the vault balance (the canonical "user
+            holds USDC" surface). Owner balance shows up in the Deposit
+            sheet so users know the source when topping up. */}
         <div>
           <p className="mb-2 text-xs opacity-60">{s.wallet.ownerWallet}</p>
           <TonConnectButton />
-          {vault.ownerAddress && (
-            <>
-              <p className="mt-2 text-xs opacity-60">
-                {s.wallet.balance}:{' '}
-                <span className="font-medium tabular-nums">
-                  {ownerBalance == null ? '—' : `${nanoToUsdc(ownerBalance)} USDC`}
-                </span>
-              </p>
-              <p className="mt-1 text-[10px] opacity-40">{s.wallet.ownerWalletNote}</p>
-            </>
-          )}
         </div>
 
         {!vault.ownerAddress ? (
@@ -191,6 +182,7 @@ export default function Wallet() {
                   {shortAddress(vault.vaultAddress, 6, 6)}
                 </p>
               )}
+              <p className="mt-2 text-[10px] opacity-50">{s.vault.vaultBalanceNote}</p>
               {!vault.ready && (
                 <p className="mt-2 text-xs opacity-70">{s.vault.activateHint}</p>
               )}

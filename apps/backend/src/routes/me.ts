@@ -257,20 +257,24 @@ me.post('/faucet', async (c) => {
   if (!user.wallet_address) {
     return fail(c, 409, 'no_wallet', 'Connect a TON wallet before claiming the faucet');
   }
-  // Per product direction (2026-05-19): testnet faucet is UNLIMITED.
-  // Users can claim 1000 USDC any time. We still stamp faucet_claimed_at
-  // for accounting (auto-onboarding in /join uses it to skip the auto-
-  // claim once the user has claimed at least once), but it no longer
-  // blocks re-claims.
+  // Per product direction (2026-05-19): faucet drops 1000 USDC DIRECTLY
+  // into the user's gasless vault, not the owner wallet. So the vault
+  // must be activated first.
+  if (!user.vault_address) {
+    return fail(
+      c,
+      409,
+      'no_vault',
+      'Vault 활성화 후 faucet 사용 가능합니다. 회로 참여 또는 Deposit 으로 vault 를 먼저 활성화해주세요.',
+    );
+  }
+  // Unlimited claims per user (no faucet_claimed_at gate).
 
   try {
-    await sendPlainTon(user.wallet_address, FAUCET_AMOUNT);
+    await sendPlainTon(user.vault_address, FAUCET_AMOUNT);
   } catch (e) {
     const errMsg = (e as Error).message ?? '';
     logger.error({ err: errMsg, user: user.id }, 'faucet broadcast failed');
-    // Surface the likely root cause to the user. The backend wallet
-    // (WALLET_MNEMONIC) is what funds the faucet — when it runs out of
-    // testnet TON, every claim fails until an operator tops it up.
     const isInsufficient =
       /insufficient|balance|not enough|423/i.test(errMsg) ||
       /Account is uninitialized/i.test(errMsg);
@@ -279,30 +283,38 @@ me.post('/faucet', async (c) => {
       502,
       isInsufficient ? 'faucet_dry' : 'broadcast_failed',
       isInsufficient
-        ? '운영자 faucet 지갑의 testnet TON이 소진됐어요. 잠시 후 다시 시도해주세요. (operator: top up WALLET_MNEMONIC wallet via @testgiver_ton_bot)'
+        ? '운영자 faucet 지갑의 testnet TON이 소진됐어요. 잠시 후 다시 시도해주세요.'
         : `Faucet broadcast failed: ${errMsg.slice(0, 120)}`,
     );
   }
-  // Record claim time (idempotent — we keep the FIRST claim time so the
-  // join-onboarding can detect "ever claimed" cheaply).
   if (!user.faucet_claimed_at) {
     await sb
       .from('users')
       .update({ faucet_claimed_at: new Date().toISOString() })
       .eq('id', user.id);
   }
-  // Credit the server-tracked test USDC balance so the wallet UI shows only
-  // what we issued (not external testnet TON the user may have grabbed from
-  // Tonkeeper or @testgiver_ton_bot).
-  const newBalance = (BigInt(user.test_usdc_balance) + FAUCET_AMOUNT).toString();
+  // Credit the server-tracked VAULT balance (was owner balance until
+  // this commit). The vault is now the canonical "user holds USDC"
+  // surface; the owner wallet is only used for Tonkeeper-backed flows.
+  const newVaultBalance = (
+    BigInt(user.test_usdc_vault_balance) + FAUCET_AMOUNT
+  ).toString();
   const { error: balErr } = await sb
     .from('users')
-    .update({ test_usdc_balance: newBalance })
+    .update({ test_usdc_vault_balance: newVaultBalance })
     .eq('id', user.id);
   if (balErr) {
-    logger.error({ err: balErr.message, user: user.id }, 'test_usdc_balance credit failed');
+    logger.error(
+      { err: balErr.message, user: user.id },
+      'test_usdc_vault_balance credit failed',
+    );
   }
-  return c.json({ ok: true, amount: FAUCET_AMOUNT.toString(), testUsdcBalance: newBalance });
+  return c.json({
+    ok: true,
+    amount: FAUCET_AMOUNT.toString(),
+    testUsdcBalance: user.test_usdc_balance,
+    testUsdcVaultBalance: newVaultBalance,
+  });
 });
 
 // Client-trust deposit sync. The TMA sends an on-chain top-up to the vault via

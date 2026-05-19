@@ -1,11 +1,57 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { Address, contractAddress } from '@ton/core';
+import { TonClient } from '@ton/ton';
 import { getSupabase } from '../lib/supabase.js';
 import { extractTelegramUser, resolveOrCreateUser } from '../lib/currentUser.js';
 import { fail } from '../lib/errors.js';
+import { logger } from '../lib/logger.js';
 import { KyeContract } from 'contracts/build/KyeContract/KyeContract_KyeContract';
 import type { KyeInit } from 'contracts/build/KyeContract/KyeContract_KyeContract';
+
+// Lightweight cached lookup of "did slot X contribute on round Y?" against
+// the on-chain contract. The indexer doesn't track ContributionReceived,
+// so we rely on the contract's hasContributed getter. Cache for 5s so a
+// kye-detail page load doesn't hammer toncenter.
+const contribCache = new Map<string, { ts: number; map: Map<number, boolean> }>();
+async function readPaidSlots(
+  contractAddrStr: string,
+  roundNum: number,
+  memberCount: number,
+): Promise<Map<number, boolean>> {
+  const key = `${contractAddrStr}:${roundNum}`;
+  const cached = contribCache.get(key);
+  if (cached && Date.now() - cached.ts < 5_000) return cached.map;
+  const map = new Map<number, boolean>();
+  try {
+    const client = new TonClient({
+      endpoint:
+        process.env.TON_RPC_URL ??
+        process.env.TON_API_ENDPOINT ??
+        'https://testnet.toncenter.com/api/v2/jsonRPC',
+      apiKey: process.env.TON_API_KEY,
+    });
+    const addr = Address.parse(contractAddrStr);
+    for (let order = 1; order <= memberCount; order++) {
+      try {
+        const r = await client.runMethod(addr, 'hasContributed', [
+          { type: 'int', value: BigInt(roundNum) },
+          { type: 'int', value: BigInt(order) },
+        ]);
+        map.set(order, r.stack.readBoolean());
+      } catch (e) {
+        logger.warn(
+          { err: (e as Error).message, contractAddrStr, order },
+          'hasContributed lookup failed (treating as not paid)',
+        );
+      }
+    }
+  } catch (e) {
+    logger.warn({ err: (e as Error).message }, 'TonClient init failed for contributions');
+  }
+  contribCache.set(key, { ts: Date.now(), map });
+  return map;
+}
 
 export const kyes = new Hono();
 
@@ -64,18 +110,6 @@ kyes.get('/:id', async (c) => {
       ? (POLICY_FROM_INT[p.defaultPolicy] ?? 'pro_rata')
       : (p.defaultPolicy as string) ?? 'pro_rata';
 
-  const members = (rawMembers ?? []).map((m) => {
-    const userRel = (m as { user?: Record<string, unknown> | Record<string, unknown>[] }).user;
-    const u = Array.isArray(userRel) ? userRel[0] : userRel;
-    return {
-      id: m.id as string,
-      userId: m.user_id as string,
-      walletAddress: ((u?.wallet_address as string) ?? '') || '',
-      orderNum: Number(m.order_num),
-      status: m.status as 'active' | 'defaulted' | 'paid_out',
-    };
-  });
-
   const createdAtSec = kye.created_at
     ? Math.floor(new Date(kye.created_at as string).getTime() / 1000)
     : 0;
@@ -85,6 +119,33 @@ kyes.get('/:id', async (c) => {
   const currentRoundNum = currentRoundRow?.round_num
     ? Number(currentRoundRow.round_num)
     : 1;
+
+  // Read on-chain "has this slot contributed for current round?" since the
+  // indexer doesn't (yet) handle ContributionReceived events. Without this,
+  // members who DID contribute on chain still see themselves as 'pending'
+  // in the UI → they retry → contract rejects with "already contributed"
+  // → bounce + confusion. The check is cached for 5s per kye.
+  const paidMap =
+    kye.status === 'active'
+      ? await readPaidSlots(kye.contract_address as string, currentRoundNum, memberCount)
+      : new Map<number, boolean>();
+
+  const members = (rawMembers ?? []).map((m) => {
+    const userRel = (m as { user?: Record<string, unknown> | Record<string, unknown>[] }).user;
+    const u = Array.isArray(userRel) ? userRel[0] : userRel;
+    const orderNum = Number(m.order_num);
+    const paidThisRound = paidMap.get(orderNum) === true;
+    return {
+      id: m.id as string,
+      userId: m.user_id as string,
+      walletAddress: ((u?.wallet_address as string) ?? '') || '',
+      orderNum,
+      status: m.status as 'active' | 'defaulted' | 'paid_out',
+      // Per-round status — drives the TMA's "you: Round N (Pending/Paid)"
+      // panel and gates the Contribute button.
+      currentRoundStatus: paidThisRound ? ('paid' as const) : ('pending' as const),
+    };
+  });
 
   return c.json({
     kye: {

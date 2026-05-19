@@ -9,6 +9,7 @@ import {
   buildEmergencyCancelBody,
   buildExecuteRoundBody,
 } from '@roosta/shared/contractMessages';
+import { calculate_payout } from '@roosta/shared/payout';
 import { PageHeader } from '../../../components/PageHeader';
 import { StatusBadge } from '../../../components/StatusBadge';
 import { MemberRow } from '../../../components/MemberRow';
@@ -327,30 +328,49 @@ export default function KyeDetail({ params }: { params: Promise<{ address: strin
         </div>
       </section>
 
-      {me && kye.status === 'active' && (
-        <section className="px-4 pb-2">
-          <div className="rounded-xl border border-black/5 bg-[var(--color-secondary-bg)] p-3 text-sm">
-            <p className="opacity-70">
-              {s.kye.you}: {s.kye.progress} {kye.currentRound}{' '}
-              <span
-                className={
-                  myStatus === 'paid'
-                    ? 'text-green-700'
-                    : myStatus === 'defaulted'
-                      ? 'text-red-700'
-                      : 'text-gray-700'
-                }
-              >
-                ({myStatus === 'paid' ? s.kye.paid : myStatus === 'defaulted' ? s.kye.defaulted : s.kye.pending})
-              </span>
-            </p>
+      {me && kye.status === 'active' && (() => {
+        // Intuitive role panel: show explicitly what the user is expected
+        // to pay this round AND what they receive (and when). Members
+        // were confused about whether "Contribute" meant pay-in or
+        // receive — now we spell out both.
+        const contributionStr = `${fmtUSDT(BigInt(kye.params.contribution))} USDC`;
+        let payoutStr = contributionStr;
+        try {
+          const payout = calculate_payout({
+            N: kye.params.N,
+            C: BigInt(kye.params.contribution),
+            F_bps: kye.params.feeRateBps,
+            alpha_max_bps: kye.params.alphaMaxBps,
+            k: me.orderNum,
+          });
+          payoutStr = `${fmtUSDT(payout.payout)} USDC`;
+        } catch { /* ignore — fall back to contribution amount */ }
+        const myReceivedAlready = me.orderNum < kye.currentRound;
+        return (
+          <section className="px-4 pb-2 space-y-2">
+            {/* Role summary */}
+            <div className="rounded-xl border border-[var(--color-primary)]/20 bg-[var(--color-primary)]/5 p-3 text-sm">
+              <p className="text-xs font-semibold opacity-70">{s.kye.myRoleHeading}</p>
+              <p className="mt-1">
+                {myStatus === 'paid'
+                  ? `Round ${kye.currentRound} ✅ ${contributionStr}`
+                  : s.kye.myRolePayThisRound(kye.currentRound, contributionStr)}
+              </p>
+              <p className="mt-1 opacity-80">
+                {myReceivedAlready
+                  ? s.kye.myRoleAlreadyReceived(me.orderNum)
+                  : s.kye.myRoleReceiveAt(me.orderNum, payoutStr)}
+              </p>
+            </div>
+
+            {/* Pay button */}
             {myStatus !== 'paid' && (
-              <>
+              <div className="rounded-xl border border-black/5 bg-[var(--color-secondary-bg)] p-3">
                 <button
                   type="button"
                   onClick={() => void contribute()}
                   disabled={contributing || submittedAt != null}
-                  className="mt-2 w-full rounded-xl bg-[var(--color-primary)] py-2 text-sm font-medium text-white disabled:opacity-60"
+                  className="w-full rounded-xl bg-[var(--color-primary)] py-3 text-sm font-medium text-white disabled:opacity-60"
                 >
                   {contributing || submittedAt != null
                     ? s.kye.contributing
@@ -361,11 +381,21 @@ export default function KyeDetail({ params }: { params: Promise<{ address: strin
                     {s.kye.contributePending}
                   </p>
                 )}
-              </>
+              </div>
             )}
-          </div>
-        </section>
-      )}
+            {myStatus === 'paid' && (
+              <p className="text-center text-xs text-green-700">
+                ✅ {s.kye.paid}
+              </p>
+            )}
+            {myStatus === 'defaulted' && (
+              <p className="text-center text-xs text-red-700">
+                ⚠️ {s.kye.defaulted}
+              </p>
+            )}
+          </section>
+        );
+      })()}
 
       {/* Organizer decision panel — visible only to the organizer on an
           active circle. Shows the current default policy + an explicit
@@ -373,30 +403,80 @@ export default function KyeDetail({ params }: { params: Promise<{ address: strin
           (instead of the scheduler firing silently). Cancel still routes
           through the existing delete-circle button (which is itself
           gated on status='created' by the contract). */}
-      {isOrganizer && kye.status === 'active' && (
-        <section className="px-4 pb-2">
-          <div className="rounded-2xl border-2 border-amber-200 bg-amber-50 p-3">
-            <p className="text-sm font-semibold text-amber-900">{s.kye.organizerPanel}</p>
-            <p className="mt-1 text-xs text-amber-800">
-              {s.kye.organizerPanelBody(
-                kye.params.defaultPolicy === 'pro_rata'
-                  ? s.create.policyProRata
-                  : kye.params.defaultPolicy === 'cancel'
-                    ? s.create.policyCancel
-                    : s.create.policyOrganizerCover,
+      {(() => {
+        if (!isOrganizer || kye.status !== 'active') return null;
+        const nowSec = Math.floor(Date.now() / 1000);
+        const deadlineSec = kye.nextRoundAt ?? 0;
+        const intervalSec = kye.params.roundIntervalSec ?? 0;
+        const earliestSec = deadlineSec + intervalSec;
+        const secsRemaining = Math.max(0, earliestSec - nowSec);
+        const beforeGrace = deadlineSec > 0 && nowSec < deadlineSec;
+        const inGrace = deadlineSec > 0 && nowSec >= deadlineSec && secsRemaining > 0;
+        const graceExpired = !beforeGrace && !inGrace;
+        // Defaulter check: anyone whose this-round status is still 'pending'.
+        const hasDefaulter = members.some((m) => m.currentRoundStatus !== 'paid');
+        const canExecute = graceExpired;
+        const canCancel = graceExpired && hasDefaulter;
+        const policyName =
+          kye.params.defaultPolicy === 'pro_rata'
+            ? s.create.policyProRata
+            : kye.params.defaultPolicy === 'cancel'
+              ? s.create.policyCancel
+              : s.create.policyOrganizerCover;
+        return (
+          <section className="px-4 pb-2">
+            <div className="rounded-2xl border-2 border-amber-200 bg-amber-50 p-3">
+              <p className="text-sm font-semibold text-amber-900">
+                {s.kye.organizerPanel}
+              </p>
+              <p className="mt-1 text-xs text-amber-800">
+                {s.kye.organizerPanelBody(policyName)}
+              </p>
+              {inGrace && (
+                <p className="mt-1 text-xs text-amber-700">
+                  {s.kye.organizerGraceCountdown(Math.ceil(secsRemaining / 60))}
+                </p>
               )}
-            </p>
-            <button
-              type="button"
-              onClick={() => void executeRound()}
-              disabled={executingRound}
-              className="mt-2 w-full rounded-xl bg-amber-600 py-2 text-sm font-medium text-white disabled:opacity-60"
-            >
-              {executingRound ? s.kye.executingRound : s.kye.executeRound}
-            </button>
-          </div>
-        </section>
-      )}
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => void executeRound()}
+                  disabled={executingRound || !canExecute}
+                  className="rounded-xl bg-amber-600 py-2 text-sm font-medium text-white disabled:opacity-50"
+                >
+                  {executingRound
+                    ? s.kye.executingRound
+                    : beforeGrace
+                      ? s.kye.executeRoundBeforeDeadline
+                      : inGrace
+                        ? s.kye.executeRoundInGrace
+                        : s.kye.executeRound}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConfirmDelete(true)}
+                  disabled={deleting || !canCancel}
+                  className="rounded-xl border-2 border-red-400 py-2 text-sm font-medium text-red-700 disabled:opacity-40"
+                  title={
+                    !graceExpired
+                      ? s.kye.organizerCancelLockedGrace
+                      : !hasDefaulter
+                        ? s.kye.organizerCancelNoDefaulter
+                        : undefined
+                  }
+                >
+                  {s.kye.organizerCancelActive}
+                </button>
+              </div>
+              {!canCancel && graceExpired && !hasDefaulter && (
+                <p className="mt-1 text-[10px] text-amber-700">
+                  {s.kye.organizerCancelNoDefaulter}
+                </p>
+              )}
+            </div>
+          </section>
+        );
+      })()}
 
       <section className="px-4 pb-4">
         <h2 className="mb-2 font-semibold text-sm">{s.kye.members}</h2>

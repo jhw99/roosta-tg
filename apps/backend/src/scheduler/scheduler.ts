@@ -51,9 +51,18 @@ export class RoundScheduler {
   async tick(): Promise<number> {
     if (!this.supabase) return 0;
     const nowIso = this.now().toISOString();
+    // We now extend the off-chain grace window to ONE FULL round interval
+    // past the deadline (sweep #6, 2026-05-19). The contract's own
+    // GRACE_WINDOW_SEC = 300s is a hard floor — anyone can manually
+    // trigger ExecuteRound 5 min after deadline — but our scheduler waits
+    // a full interval so members get a meaningful catch-up window before
+    // the Cancel policy fires automatically. We need `kyes.params` to
+    // read roundIntervalSec per circle, so pull that too.
     const { data, error } = await this.supabase
       .from('rounds')
-      .select('id, kye_id, round_num, scheduled_at, executed_at, kyes(contract_address, status)')
+      .select(
+        'id, kye_id, round_num, scheduled_at, executed_at, kyes(contract_address, status, params)',
+      )
       .lte('scheduled_at', nowIso)
       .is('executed_at', null);
     if (error) {
@@ -66,10 +75,22 @@ export class RoundScheduler {
       kye_id: string;
       round_num: number;
       scheduled_at: string;
-      kyes?: { contract_address: string; status: string } | { contract_address: string; status: string }[];
+      kyes?:
+        | { contract_address: string; status: string; params?: Record<string, unknown> }
+        | { contract_address: string; status: string; params?: Record<string, unknown> }[];
     }>) {
       const kyeRel = Array.isArray(row.kyes) ? row.kyes[0] : row.kyes;
       if (!kyeRel || kyeRel.status !== 'active') continue;
+      // Extended grace: deadline + roundIntervalSec. Members get a full
+      // round's worth of catch-up before we trigger the Cancel/ProRata/
+      // OrganizerCover policy.
+      const intervalSec = Number((kyeRel.params ?? {}).roundIntervalSec ?? 0);
+      if (intervalSec > 0) {
+        const earliestTriggerSec =
+          Math.floor(new Date(row.scheduled_at).getTime() / 1000) + intervalSec;
+        const nowSec = Math.floor(this.now().getTime() / 1000);
+        if (nowSec < earliestTriggerSec) continue;
+      }
       await this.queue.add(
         'execute_round',
         {

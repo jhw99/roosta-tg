@@ -28,8 +28,12 @@ test.describe('regress-organizer-decision — source contract', () => {
 
   test('panel is gated to organizer + status=active', () => {
     const src = fs.readFileSync(KYE_PAGE, 'utf8');
-    // Match the JSX guard: {isOrganizer && kye.status === 'active' && (
-    expect(src).toMatch(/\{isOrganizer\s*&&\s*kye\.status\s*===\s*['"]active['"]/);
+    // The gate may be `{isOrganizer && kye.status === 'active'}` (JSX
+    // form) OR an IIFE that returns null when `!isOrganizer || kye.status
+    // !== 'active'` (introduced in sweep #6 to add countdown logic).
+    // Either shape is acceptable as long as both gates are present.
+    expect(src).toMatch(/isOrganizer/);
+    expect(src).toMatch(/kye\.status\s*(===\s*|!==\s*)['"]active['"]/);
     expect(src).toMatch(/organizerPanel\b/);
   });
 

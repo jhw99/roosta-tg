@@ -122,9 +122,23 @@ export const ko: Strings = {
     contributePending: '납입 처리 중 (체인 컨펌 대기)',
     organizerPanel: '계주 결정 패널',
     organizerPanelBody: (policy: string) =>
-      `라운드 마감 후 누군가 미납하면 어떻게 처리할지 결정합니다. 현재 정책: ${policy}. 마감 5분 후부터 라운드 실행이 가능합니다.`,
+      `라운드 마감 + 1 라운드 주기가 지난 뒤에도 미납자가 있으면 정책 (${policy}) 에 따라 처리됩니다. 그 전엔 라운드 실행이 잠겨 있어요.`,
+    organizerGraceCountdown: (mins: number) =>
+      `라운드 실행까지 약 ${mins}분 대기 (멤버 catch-up 기간).`,
     executeRound: '라운드 실행',
     executingRound: '라운드 실행 중...',
+    executeRoundBeforeDeadline: '마감 전 — 실행 불가',
+    executeRoundInGrace: '대기 중 — 라운드 실행 잠금',
+    organizerCancelActive: '계 취소',
+    organizerCancelLockedGrace: '아직 catch-up 기간이라 취소 불가',
+    organizerCancelNoDefaulter: '미납자가 없으면 취소 불필요 — 라운드 실행을 진행하세요.',
+    myRoleHeading: '내 역할',
+    myRolePayThisRound: (n: number, amount: string) =>
+      `이번 라운드(${n}) 에 ${amount} 납입해야 합니다.`,
+    myRoleReceiveAt: (slot: number, amount: string) =>
+      `내 차례 (슬롯 ${slot}) 에 약 ${amount} 받을 예정입니다.`,
+    myRoleAlreadyReceived: (slot: number) =>
+      `슬롯 ${slot} 에서 이미 payout 을 받았습니다.`,
     tonscan: 'Tonscan에서 보기',
     rounds: '라운드 내역',
     share: '공유',

@@ -111,9 +111,23 @@ export const en = {
     contributePending: 'Contribution pending (waiting on chain confirmation)',
     organizerPanel: 'Organizer decision panel',
     organizerPanelBody: (policy: string) =>
-      `Decide what happens if anyone misses the deadline. Current policy: ${policy}. Round execution is allowed starting 5 minutes after the deadline.`,
+      `If anyone is still late after the deadline + one full round interval, the policy (${policy}) settles the round. Execution is locked before then.`,
+    organizerGraceCountdown: (mins: number) =>
+      `~${mins} min until round execution unlocks (member catch-up window).`,
     executeRound: 'Execute round',
     executingRound: 'Executing round…',
+    executeRoundBeforeDeadline: 'Before deadline — locked',
+    executeRoundInGrace: 'Waiting — execution locked',
+    organizerCancelActive: 'Cancel circle',
+    organizerCancelLockedGrace: 'Still in catch-up window — cancel locked',
+    organizerCancelNoDefaulter: 'No defaulters — execute the round instead.',
+    myRoleHeading: 'Your role',
+    myRolePayThisRound: (n: number, amount: string) =>
+      `You must pay ${amount} for this round (${n}).`,
+    myRoleReceiveAt: (slot: number, amount: string) =>
+      `You will receive ~${amount} on your slot (${slot}).`,
+    myRoleAlreadyReceived: (slot: number) =>
+      `You already received your payout on slot ${slot}.`,
     tonscan: 'Open in Tonscan',
     rounds: 'Round history',
     share: 'Share',
